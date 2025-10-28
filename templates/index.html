@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Snippets</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <a href="javascript:void(0)" onclick="goToHome()" class="logo">
+                <div class="logo-icon"></div>
+                <div class="logo-text">Snippets</div>
+            </a>
+            <nav>
+                <a href="#" class="nav-item active">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M10 2L3 7v11h5v-6h4v6h5V7l-7-5z"/>
+                    </svg>
+                    My snippets
+                </a>
+                <a href="#" class="nav-item" onclick="logout(); return false;">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M3 3h8v2H5v10h6v2H3V3zm12.5 4.5l1.4 1.4L13.7 12l3.2 3.1-1.4 1.4L11 12l4.5-4.5z"/>
+                    </svg>
+                    Logout
+                </a>
+            </nav>
+        </div>
+
+        <!-- Main content -->
+        <div class="main-content">
+            <div class="header">
+                <div class="search-bar">
+                    <input type="text" id="searchInput" class="search-input" placeholder="Search your snippets...">
+                    <button id="clearSearch" class="clear-search" style="display: none;">×</button>
+                </div>
+                <div class="date-controls">
+                    <div class="date-range-label">Date range</div>
+                    <input type="date" id="startDate" class="date-input">
+                    <span>–</span>
+                    <input type="date" id="endDate" class="date-input">
+                    <button class="nav-btn" onclick="navigateWeek(-1)">‹</button>
+                    <button class="nav-btn" onclick="navigateWeek(1)">›</button>
+                    <button class="current-week-btn" onclick="goToCurrentWeek()">Go to current week</button>
+                </div>
+            </div>
+
+            <div class="snippets-container" id="snippetsContainer">
+                <!-- Snippets will be loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Modal -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">Edit Snippet</h2>
+                <button class="close-btn" onclick="closeModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="editor-toolbar">
+                    <button onclick="insertMarkdown('**', '**')" title="Bold">B</button>
+                    <button onclick="insertMarkdown('*', '*')" title="Italic">I</button>
+                    <button onclick="insertMarkdown('~~', '~~')" title="Strikethrough">S</button>
+                    <button onclick="insertMarkdown('- ')" title="Bullet list">•</button>
+                    <button onclick="insertMarkdown('1. ')" title="Numbered list">1.</button>
+                </div>
+                <textarea id="snippetContent" class="snippet-editor" placeholder="Enter your snippet..."></textarea>
+                <div class="markdown-toggle">
+                    <label>
+                        <input type="checkbox" id="enableMarkdown" checked>
+                        Enable Markdown
+                    </label>
+                </div>
+                <div class="info-message">
+                    Publishing will replace any earlier versions. Previously published versions are still visible to Googlers.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-primary" onclick="saveSnippet()">Publish</button>
+                <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
