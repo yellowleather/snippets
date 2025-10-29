@@ -5,28 +5,74 @@ let currentWeekEnd = null;
 
 // Initialize the app
 document.addEventListener('DOMContentLoaded', () => {
-    goToCurrentWeek();
+    initializeDefaultView();
     setupDateInputs();
-    setupSearch();
 });
 
 function setupDateInputs() {
     const startInput = document.getElementById('startDate');
     const endInput = document.getElementById('endDate');
-    
-    startInput.addEventListener('change', loadSnippets);
-    endInput.addEventListener('change', loadSnippets);
+
+    // When start changes: ensure it's a Monday (snap to Monday), and that end >= start
+    startInput.addEventListener('change', () => {
+        if (!startInput.value) return;
+        const selected = new Date(startInput.value);
+        const monday = getWeekDates(selected).monday;
+        startInput.value = monday; // snap to Monday
+
+        if (endInput.value) {
+            const endDate = new Date(endInput.value);
+            if (endDate < new Date(startInput.value)) {
+                alert('End date must be greater than or equal to start date. Adjusting end to the Sunday of the selected week.');
+                endInput.value = getWeekDates(new Date(startInput.value)).sunday;
+            }
+        }
+
+        loadSnippets();
+    });
+
+    // When end changes: ensure it's a Sunday (snap to Sunday), and that end >= start
+    endInput.addEventListener('change', () => {
+        if (!endInput.value) return;
+        const selected = new Date(endInput.value);
+        const sunday = getWeekDates(selected).sunday;
+        endInput.value = sunday; // snap to Sunday
+
+        if (startInput.value) {
+            const startDate = new Date(startInput.value);
+            if (new Date(endInput.value) < startDate) {
+                alert('End date must be greater than or equal to start date. Adjusting start to the Monday of the selected week.');
+                startInput.value = getWeekDates(new Date(endInput.value)).monday;
+            }
+        }
+
+        loadSnippets();
+    });
 }
 
 function getWeekDates(date) {
-    const d = new Date(date);
-    const day = d.getDay();
-    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust for Monday
-    
-    const monday = new Date(d.setDate(diff));
+    // Normalize input to local date (avoid TZ issues with Date parsing of YYYY-MM-DD)
+    let d;
+    if (typeof date === 'string') {
+        const parts = date.split('-').map(Number);
+        // parts: [YYYY, MM, DD]
+        d = new Date(parts[0], parts[1] - 1, parts[2]);
+    } else if (date instanceof Date) {
+        d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    } else {
+        d = new Date();
+        d.setHours(0,0,0,0);
+    }
+
+    const day = d.getDay(); // 0 (Sun) .. 6 (Sat)
+    // Calculate Monday of this week
+    const monday = new Date(d);
+    const offsetToMonday = (day === 0) ? -6 : (1 - day);
+    monday.setDate(d.getDate() + offsetToMonday);
+
     const sunday = new Date(monday);
     sunday.setDate(monday.getDate() + 6);
-    
+
     return {
         monday: formatDate(monday),
         sunday: formatDate(sunday),
@@ -36,11 +82,17 @@ function getWeekDates(date) {
 }
 
 function formatDate(date) {
-    return date.toISOString().split('T')[0];
+    // Format YYYY-MM-DD using local date components to avoid timezone shifts
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
 }
 
 function formatDateDisplay(dateStr) {
-    const date = new Date(dateStr);
+    // Parse YYYY-MM-DD into local date to avoid timezone issues
+    const parts = String(dateStr).split('-').map(Number);
+    const date = new Date(parts[0], parts[1] - 1, parts[2]);
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
 }
@@ -53,53 +105,194 @@ function getWeekNumber(date) {
     return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
 }
 
-async function goToCurrentWeek() {
+async function initializeDefaultView() {
+    // Default date range per spec:
+    // Start = Monday of (current week - 4 weeks)
+    // End   = Sunday of current week
     const today = new Date();
-    const endWeek = getWeekDates(today);
-    
-    // Calculate start date (12 weeks ago)
-    const startDate = new Date(today);
-    startDate.setDate(startDate.getDate() - (12 * 7)); // Go back 12 weeks
-    const startWeek = getWeekDates(startDate);
-    
-    document.getElementById('startDate').value = startWeek.monday;
-    document.getElementById('endDate').value = endWeek.sunday;
-    
+
+    // Get current week's Monday and Sunday
+    const currentWeek = getWeekDates(today);
+
+    // Compute Monday of current week minus 4 weeks
+    const startMondayObj = new Date(currentWeek.mondayObj);
+    startMondayObj.setDate(startMondayObj.getDate() - (4 * 7));
+
+    // start = Monday of (current week - 4 weeks)
+    const startStr = formatDate(startMondayObj);
+    // end = Sunday of current week
+    const endStr = currentWeek.sunday;
+
+    document.getElementById('startDate').value = startStr;
+    document.getElementById('endDate').value = endStr;
+
+    await loadSnippets();
+}
+
+async function goToCurrentWeek() {
+    // Set date range to current week only:
+    // Start = Monday of current week
+    // End   = Sunday of current week
+    const today = new Date();
+
+    // Get current week's Monday and Sunday
+    const currentWeek = getWeekDates(today);
+
+    document.getElementById('startDate').value = currentWeek.monday;
+    document.getElementById('endDate').value = currentWeek.sunday;
+
     await loadSnippets();
 }
 
 async function navigateWeek(direction) {
     const startInput = document.getElementById('startDate');
     const endInput = document.getElementById('endDate');
-    
-    const startDate = new Date(startInput.value);
-    const endDate = new Date(endInput.value);
-    
+
+    // Parse dates as local dates to avoid timezone issues
+    const startParts = startInput.value.split('-').map(Number);
+    const startDate = new Date(startParts[0], startParts[1] - 1, startParts[2]);
+
+    const endParts = endInput.value.split('-').map(Number);
+    const endDate = new Date(endParts[0], endParts[1] - 1, endParts[2]);
+
     // Move both dates forward/backward by a week
     startDate.setDate(startDate.getDate() + (direction * 7));
     endDate.setDate(endDate.getDate() + (direction * 7));
-    
+
     // Update the inputs with the new dates
     startInput.value = formatDate(startDate);
     endInput.value = formatDate(endDate);
-    
+
     await loadSnippets();
 }
 
 async function loadSnippets() {
     const startDate = document.getElementById('startDate').value;
     const endDate = document.getElementById('endDate').value;
-    
+
     if (!startDate || !endDate) return;
-    
+
+    // Parse dates properly as local dates to avoid timezone issues
+    const startParts = startDate.split('-').map(Number);
+    const start = new Date(startParts[0], startParts[1] - 1, startParts[2]);
+
+    const endParts = endDate.split('-').map(Number);
+    const end = new Date(endParts[0], endParts[1] - 1, endParts[2]);
+
+    if (end < start) {
+        alert('End date must be greater than or equal to start date');
+        return;
+    }
+
+    // Compute the universe of weeks (includes week containing start, week containing end, and all weeks between)
+    const universe = computeUniverseWeeks(startDate, endDate);
+
+    // Query API using full-week boundaries so server returns snippets for those weeks
+    const queryStart = universe[0].week_start;
+    const queryEnd = universe[universe.length - 1].week_end;
+
     try {
-        const response = await fetch(`/api/snippets?start_date=${startDate}&end_date=${endDate}`);
+        const response = await fetch(`/api/snippets?start_date=${queryStart}&end_date=${queryEnd}`);
         const snippets = await response.json();
-        
-        displaySnippets(snippets);
+
+        // Map snippets by week_start for easy lookup
+        const snippetsMap = {};
+        snippets.forEach(s => { snippetsMap[s.week_start] = s; });
+
+        displayWeeks(universe, snippetsMap);
     } catch (error) {
         console.error('Error loading snippets:', error);
     }
+}
+
+// Compute the array of weeks (week_start, week_end, Date objects, isFuture)
+function computeUniverseWeeks(startDateStr, endDateStr) {
+    // Parse dates as local dates to avoid timezone issues
+    const startParts = startDateStr.split('-').map(Number);
+    const startDate = new Date(startParts[0], startParts[1] - 1, startParts[2]);
+
+    const endParts = endDateStr.split('-').map(Number);
+    const endDate = new Date(endParts[0], endParts[1] - 1, endParts[2]);
+
+    // Get Monday for start and Monday for end
+    const startWeek = getWeekDates(startDate);
+    const endWeek = getWeekDates(endDate);
+
+    const weeks = [];
+    let cursor = new Date(startWeek.mondayObj);
+    const endCursor = new Date(endWeek.mondayObj);
+
+    const today = new Date();
+    today.setHours(0,0,0,0);
+
+    while (cursor <= endCursor) {
+        const monday = new Date(cursor);
+        const sunday = new Date(monday);
+        sunday.setDate(monday.getDate() + 6);
+
+        const weekStartStr = formatDate(monday);
+        const weekEndStr = formatDate(sunday);
+
+        const isFuture = monday > today; // week starts in the future
+
+        weeks.push({
+            week_start: weekStartStr,
+            week_end: weekEndStr,
+            weekStartObj: monday,
+            weekEndObj: sunday,
+            isFuture
+        });
+
+        // Move to next week
+        cursor.setDate(cursor.getDate() + 7);
+    }
+
+    return weeks;
+}
+
+// Render the weeks universe and snippets map
+function displayWeeks(weeks, snippetsMap) {
+    const container = document.getElementById('snippetsContainer');
+
+    if (!weeks || weeks.length === 0) {
+        container.innerHTML = '<p>No weeks to display</p>';
+        return;
+    }
+
+    let html = '';
+
+    // Render weeks in reverse chronological order (latest week first)
+    for (let i = weeks.length - 1; i >= 0; i--) {
+        const week = weeks[i];
+        const weekNum = getWeekNumber(week.week_start);
+        const startFormatted = formatDateDisplay(week.week_start);
+        const endFormatted = formatDateDisplay(week.week_end);
+
+        html += `<div class="week-section">`;
+        html += `  <div class="week-header">`;
+        html += `    <span class="week-badge">Week ${weekNum}</span>`;
+        html += `    <h2 class="week-title">${startFormatted} – ${endFormatted}</h2>`;
+
+        // If snippet exists for this week, render it
+        const snippet = snippetsMap[week.week_start];
+        html += `  </div>`;
+        html += `  <div class="snippet-content">`;
+        if (snippet) {
+            const enableMarkdown = true;
+            const contentHtml = enableMarkdown ? marked.parse(snippet.content) : escapeHtml(snippet.content);
+            html += contentHtml;
+            html += `  </div>`;
+            html += `  <button class="edit-btn" onclick="openEditModal(${snippet.id})">Edit</button>`;
+        } else {
+            // No snippet for this week — per spec show only the Add Snippets button (no "No snippets" text)
+            html += `  </div>`;
+            html += `  <button class="add-snippet-btn" onclick="openNewSnippetModalForWeek('${week.week_start}','${week.week_end}')">Add Snippets</button>`;
+        }
+
+        html += `</div>`;
+    }
+
+    container.innerHTML = html;
 }
 
 function displaySnippets(snippets) {
@@ -121,6 +314,9 @@ function displaySnippets(snippets) {
     
     let html = '<button class="add-snippet-btn" onclick="openNewSnippetModal()">Add Snippet</button>';
     
+    // Ensure snippets are shown in reverse chronological order (latest week first)
+    snippets.sort((a, b) => new Date(b.week_start) - new Date(a.week_start));
+
     snippets.forEach(snippet => {
         const weekNum = getWeekNumber(snippet.week_start);
         const startFormatted = formatDateDisplay(snippet.week_start);
@@ -170,16 +366,34 @@ function openNewSnippetModal() {
     }
     
     currentSnippetId = null;
-    currentWeekStart = startDate;
-    currentWeekEnd = endDate;
+    // Use the week containing the start date as the target week (snippets belong to a single week)
+    const week = getWeekDates(new Date(startDate));
+    currentWeekStart = week.monday;
+    currentWeekEnd = week.sunday;
     
     const weekNum = getWeekNumber(startDate);
-    const startFormatted = formatDateDisplay(startDate);
-    const endFormatted = formatDateDisplay(endDate);
+    const startFormatted = formatDateDisplay(currentWeekStart);
+    const endFormatted = formatDateDisplay(currentWeekEnd);
     
     document.getElementById('modalTitle').textContent = `New Snippet - Week ${weekNum} (${startFormatted}–${endFormatted.split(',')[0]}, ${endFormatted.split(',')[1]})`;
     document.getElementById('snippetContent').value = '';
     
+    showModal();
+}
+
+// Open the new snippet modal for a specific week (week boundaries passed)
+function openNewSnippetModalForWeek(weekStart, weekEnd) {
+    currentSnippetId = null;
+    currentWeekStart = weekStart;
+    currentWeekEnd = weekEnd;
+
+    const weekNum = getWeekNumber(weekStart);
+    const startFormatted = formatDateDisplay(weekStart);
+    const endFormatted = formatDateDisplay(weekEnd);
+
+    document.getElementById('modalTitle').textContent = `New Snippet - Week ${weekNum} (${startFormatted}–${endFormatted.split(',')[0]}, ${endFormatted.split(',')[1]})`;
+    document.getElementById('snippetContent').value = '';
+
     showModal();
 }
 
@@ -284,89 +498,22 @@ function logout() {
     }
 }
 
-function setupSearch() {
-    const searchInput = document.getElementById('searchInput');
-    const clearButton = document.getElementById('clearSearch');
-    let searchTimeout = null;
-    
-    searchInput.addEventListener('input', () => {
-        const query = searchInput.value.trim();
-        clearButton.style.display = query ? 'block' : 'none';
-        
-        // Update placeholder text based on input
-        if (!query) {
-            searchInput.placeholder = 'Search your snippets...';
-        } else if (query.length < 2) {
-            searchInput.placeholder = 'Enter at least 2 characters...';
-        }
-
-        // Debounce search to avoid too many requests
-        if (searchTimeout) {
-            clearTimeout(searchTimeout);
-        }
-        
-        searchTimeout = setTimeout(() => {
-            if (query && query.length >= 2) {  // Only search if we have 2+ characters
-                searchSnippets(query);
-            } else if (!query) {
-                loadSnippets(); // Load normal date-based view
-            }
-        }, 300);
-    });
-
-    // Handle special keys
-    searchInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-            searchInput.value = '';
-            clearButton.style.display = 'none';
-            loadSnippets();
-        }
-    });
-
-    clearButton.addEventListener('click', () => {
-        searchInput.value = '';
-        clearButton.style.display = 'none';
-        searchInput.placeholder = 'Search your snippets...';
-        loadSnippets(); // Load normal date-based view
-    });
-}
-
-async function searchSnippets(query) {
-    try {
-        const response = await fetch(`/api/snippets/search?q=${encodeURIComponent(query)}`);
-        const snippets = await response.json();
-        displaySnippets(snippets);
-    } catch (error) {
-        console.error('Error searching snippets:', error);
-    }
-}
 
 // Handle keyboard shortcuts
 document.addEventListener('keydown', (e) => {
     const modal = document.getElementById('editModal');
-    const searchInput = document.getElementById('searchInput');
-    
+
     if (modal.classList.contains('show')) {
         if (e.key === 'Escape') {
             closeModal();
         } else if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
             saveSnippet();
         }
-    } else if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
-        // Quick search shortcut
-        e.preventDefault();
-        searchInput.focus();
     }
 });
 
 // Function to handle home navigation
 function goToHome() {
-    // Clear search if any
-    const searchInput = document.getElementById('searchInput');
-    const clearButton = document.getElementById('clearSearch');
-    searchInput.value = '';
-    clearButton.style.display = 'none';
-    
-    // Go to current week view with default 12-week range
-    goToCurrentWeek();
+    // Go to default view with 4-week range
+    initializeDefaultView();
 }

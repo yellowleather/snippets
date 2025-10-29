@@ -84,19 +84,20 @@ def index():
 def get_snippets():
     start_date = request.args.get('start_date')
     end_date = request.args.get('end_date')
-    
+
     db = get_db()
-    
+
     if start_date and end_date:
+        # Use overlap logic: week overlaps with range if week_start <= end_date AND week_end >= start_date
         snippets = db.execute(
-            'SELECT * FROM snippets WHERE week_start >= ? AND week_end <= ? ORDER BY week_start DESC',
-            (start_date, end_date)
+            'SELECT * FROM snippets WHERE week_start <= ? AND week_end >= ? ORDER BY week_start DESC',
+            (end_date, start_date)
         ).fetchall()
     else:
         snippets = db.execute(
             'SELECT * FROM snippets ORDER BY week_start DESC LIMIT 10'
         ).fetchall()
-    
+
     return jsonify([dict(snippet) for snippet in snippets])
 
 @app.route('/api/snippets/<int:snippet_id>', methods=['GET'])
@@ -175,36 +176,6 @@ def get_week_info(date_str):
     except ValueError:
         return jsonify({'error': 'Invalid date format'}), 400
 
-@app.route('/api/snippets/search', methods=['GET'])
-@login_required
-def search_snippets():
-    """Search snippets by content with improved matching"""
-    query = request.args.get('q', '').strip().lower()
-    if not query:
-        return jsonify([])
-    
-    # Split the search query into words
-    search_terms = query.split()
-    if not search_terms:
-        return jsonify([])
-    
-    db = get_db()
-    
-    # Build the WHERE clause for multiple terms (AND condition)
-    where_clause = ' AND '.join(['LOWER(content) LIKE ?' for _ in search_terms])
-    # Prepare the parameters for each term
-    params = [f'%{term}%' for term in search_terms]
-    
-    snippets = db.execute(
-        f'''SELECT *, 
-            (LENGTH(content) - LENGTH(REPLACE(LOWER(content), ?, ''))) / LENGTH(?) as match_score
-            FROM snippets 
-            WHERE {where_clause}
-            ORDER BY match_score DESC, week_start DESC''',
-        params + [query, query]  # Add params for match_score calculation
-    ).fetchall()
-    
-    return jsonify([dict(snippet) for snippet in snippets])
 
 if __name__ == '__main__':
     init_db()

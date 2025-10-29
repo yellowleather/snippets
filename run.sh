@@ -14,4 +14,4 @@ fi
 echo "🚀 Starting Snippets app..."
 echo "📍 http://localhost:5001"
 echo ""
-python app.py
+./venv/bin/python app.py

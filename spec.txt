@@ -1,0 +1,17 @@
+A "snippet" is a markdown text entry in the system. Each snippet belongs to exactly one week 
+i.e. a date range of duration one week where the week starts on Monday. 
+A snippet can be modified any number of times.
+
+A "week" is defined as 7 days starting from Monday and ending on following Sunday.
+
+
+The date range should work as the following
+- By default the date range should be Monday of the current week-4 weeks, and Sunday of current week
+- User can select both start and end dates as required. end date should always be greater than start date
+- Start date must always be a Monday. End date must always be a Sunday.
+- The universe they select will comprise of weeks which are FULLY included in that range. No partial weeks are there by design.
+- If universe of weeks selected by date ranges above contains some weeks for which there is no data,
+either in the past or in the future, the "snippet content" should show "Add snippets" button. 
+Clicking on this add snippet button should open up a snippet input area which is where user will enter the snippets
+- snippets should be displayed in reverse chronological order i.e. latest week first
+

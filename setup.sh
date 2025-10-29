@@ -28,7 +28,7 @@ source venv/bin/activate
 
 # Install dependencies
 echo "📦 Installing dependencies..."
-pip install -r requirements.txt
+./venv/bin/pip install -r requirements.txt
 echo "✓ Dependencies installed"
 echo ""
 
@@ -57,7 +57,7 @@ echo ""
 
 # Initialize database
 echo "🗄️  Initializing database..."
-python3 -c "from app import init_db; init_db()"
+./venv/bin/python -c "from app import init_db; init_db()"
 echo "✓ Database initialized"
 echo ""
 
