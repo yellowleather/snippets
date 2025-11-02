@@ -195,7 +195,7 @@ nav {
 }
 
 .snippet-content li {
-    margin-bottom: 12px;
+    margin-bottom: 0px;
     position: relative;
     padding-left: 20px;
 }
