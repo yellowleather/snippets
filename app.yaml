@@ -1,0 +1,29 @@
+runtime: python39
+
+# Instance class - F1 is free tier eligible
+instance_class: F1
+
+# Automatic scaling configuration
+automatic_scaling:
+  min_idle_instances: automatic
+  max_idle_instances: 1
+  min_pending_latency: automatic
+  max_pending_latency: automatic
+
+# Environment variables
+env_variables:
+  SNIPPET_USERNAME: 'admin'
+  SNIPPET_PASSWORD: 'changeme'  # Change this before deploying!
+  SECRET_KEY: 'change-this-to-a-random-secret-key'  # Generate with: python -c "import os; print(os.urandom(24).hex())"
+
+# Handlers
+handlers:
+# Static files
+- url: /static
+  static_dir: static
+  secure: always
+
+# All other routes handled by Flask
+- url: /.*
+  script: auto
+  secure: always

@@ -3,35 +3,24 @@ import json
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from functools import wraps
-import sqlite3
 from werkzeug.security import generate_password_hash, check_password_hash
+
+# Firestore import
+try:
+    from google.cloud import firestore
+    db = firestore.Client()
+    FIRESTORE_AVAILABLE = True
+except Exception:
+    # For local development without credentials
+    db = None
+    FIRESTORE_AVAILABLE = False
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'change-this-to-a-random-secret-key')
 
 # Configuration
-DATABASE = 'snippets.db'
 USERNAME = os.environ.get('SNIPPET_USERNAME', 'admin')
 PASSWORD_HASH = generate_password_hash(os.environ.get('SNIPPET_PASSWORD', 'changeme'), method='pbkdf2:sha256')
-
-def get_db():
-    db = sqlite3.connect(DATABASE)
-    db.row_factory = sqlite3.Row
-    return db
-
-def init_db():
-    db = get_db()
-    db.execute('''
-        CREATE TABLE IF NOT EXISTS snippets (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            week_start TEXT NOT NULL,
-            week_end TEXT NOT NULL,
-            content TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    db.commit()
 
 def login_required(f):
     @wraps(f)
@@ -82,79 +71,99 @@ def index():
 @app.route('/api/snippets', methods=['GET'])
 @login_required
 def get_snippets():
+    if not FIRESTORE_AVAILABLE:
+        return jsonify({'error': 'Firestore not available'}), 500
+
     start_date = request.args.get('start_date')
     end_date = request.args.get('end_date')
 
-    db = get_db()
+    snippets_ref = db.collection('snippets')
 
     if start_date and end_date:
-        # Use overlap logic: week overlaps with range if week_start <= end_date AND week_end >= start_date
-        snippets = db.execute(
-            'SELECT * FROM snippets WHERE week_start <= ? AND week_end >= ? ORDER BY week_start DESC',
-            (end_date, start_date)
-        ).fetchall()
+        # Query snippets that overlap with the date range
+        # week overlaps with range if week_start <= end_date AND week_end >= start_date
+        query = snippets_ref.where('week_start', '<=', end_date)\
+                           .where('week_end', '>=', start_date)\
+                           .order_by('week_start', direction=firestore.Query.DESCENDING)
     else:
-        snippets = db.execute(
-            'SELECT * FROM snippets ORDER BY week_start DESC LIMIT 10'
-        ).fetchall()
+        query = snippets_ref.order_by('week_start', direction=firestore.Query.DESCENDING).limit(10)
 
-    return jsonify([dict(snippet) for snippet in snippets])
+    snippets = []
+    for doc in query.stream():
+        snippet = doc.to_dict()
+        snippet['id'] = doc.id
+        snippets.append(snippet)
 
-@app.route('/api/snippets/<int:snippet_id>', methods=['GET'])
+    return jsonify(snippets)
+
+@app.route('/api/snippets/<snippet_id>', methods=['GET'])
 @login_required
 def get_snippet(snippet_id):
-    db = get_db()
-    snippet = db.execute('SELECT * FROM snippets WHERE id = ?', (snippet_id,)).fetchone()
-    
-    if snippet:
-        return jsonify(dict(snippet))
+    if not FIRESTORE_AVAILABLE:
+        return jsonify({'error': 'Firestore not available'}), 500
+
+    doc_ref = db.collection('snippets').document(snippet_id)
+    doc = doc_ref.get()
+
+    if doc.exists:
+        snippet = doc.to_dict()
+        snippet['id'] = doc.id
+        return jsonify(snippet)
     return jsonify({'error': 'Snippet not found'}), 404
 
 @app.route('/api/snippets', methods=['POST'])
 @login_required
 def create_snippet():
+    if not FIRESTORE_AVAILABLE:
+        return jsonify({'error': 'Firestore not available'}), 500
+
     data = request.get_json()
     week_start = data.get('week_start')
     week_end = data.get('week_end')
     content = data.get('content')
-    
+
     if not all([week_start, week_end, content]):
         return jsonify({'error': 'Missing required fields'}), 400
-    
-    db = get_db()
-    cursor = db.execute(
-        'INSERT INTO snippets (week_start, week_end, content) VALUES (?, ?, ?)',
-        (week_start, week_end, content)
-    )
-    db.commit()
-    
-    return jsonify({'id': cursor.lastrowid, 'success': True})
 
-@app.route('/api/snippets/<int:snippet_id>', methods=['PUT'])
+    doc_ref = db.collection('snippets').document()
+    doc_ref.set({
+        'week_start': week_start,
+        'week_end': week_end,
+        'content': content,
+        'created_at': firestore.SERVER_TIMESTAMP,
+        'updated_at': firestore.SERVER_TIMESTAMP
+    })
+
+    return jsonify({'id': doc_ref.id, 'success': True})
+
+@app.route('/api/snippets/<snippet_id>', methods=['PUT'])
 @login_required
 def update_snippet(snippet_id):
+    if not FIRESTORE_AVAILABLE:
+        return jsonify({'error': 'Firestore not available'}), 500
+
     data = request.get_json()
     content = data.get('content')
-    
+
     if not content:
         return jsonify({'error': 'Content is required'}), 400
-    
-    db = get_db()
-    db.execute(
-        'UPDATE snippets SET content = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-        (content, snippet_id)
-    )
-    db.commit()
-    
+
+    doc_ref = db.collection('snippets').document(snippet_id)
+    doc_ref.update({
+        'content': content,
+        'updated_at': firestore.SERVER_TIMESTAMP
+    })
+
     return jsonify({'success': True})
 
-@app.route('/api/snippets/<int:snippet_id>', methods=['DELETE'])
+@app.route('/api/snippets/<snippet_id>', methods=['DELETE'])
 @login_required
 def delete_snippet(snippet_id):
-    db = get_db()
-    db.execute('DELETE FROM snippets WHERE id = ?', (snippet_id,))
-    db.commit()
-    
+    if not FIRESTORE_AVAILABLE:
+        return jsonify({'error': 'Firestore not available'}), 500
+
+    db.collection('snippets').document(snippet_id).delete()
+
     return jsonify({'success': True})
 
 @app.route('/api/week/<date_str>', methods=['GET'])
@@ -165,7 +174,7 @@ def get_week_info(date_str):
         date = datetime.strptime(date_str, '%Y-%m-%d')
         monday, sunday = get_week_dates(date)
         week_num = get_week_number(date)
-        
+
         return jsonify({
             'week_number': week_num,
             'week_start': monday.strftime('%Y-%m-%d'),
@@ -178,5 +187,4 @@ def get_week_info(date_str):
 
 
 if __name__ == '__main__':
-    init_db()
     app.run(debug=True, host='0.0.0.0', port=5001)
