@@ -4,13 +4,15 @@ A simple, password-protected weekly diary application for tracking your work sni
 
 ## Features
 
-- 📝 Weekly markdown-based diary entries
-- 📅 Date range filtering and week navigation
-- 🔒 Single-user password authentication
-- ✨ Clean, Google-inspired UI
-- ☁️ Cloud-hosted on Google App Engine
-- 💾 Firestore database (persistent, globally accessible)
-- 🚀 Free tier eligible deployment
+- Weekly markdown-based diary entries
+- Date range filtering and week navigation
+- Single-user password authentication
+- Clean, Google-inspired UI
+- Cloud-hosted on Google App Engine
+- Firestore database (persistent, globally accessible)
+- Free tier eligible deployment
+- Automated testing before deployment
+- 89% test coverage with 27 unit tests
 
 ## Architecture
 
@@ -18,23 +20,26 @@ A simple, password-protected weekly diary application for tracking your work sni
 - **Backend**: Python Flask application
 - **Database**: Google Cloud Firestore (Native Mode)
 - **Hosting**: Google App Engine (Python 3.12)
-- **Authentication**: Session-based with password hashing
+- **Authentication**: Session-based with PBKDF2-SHA256 password hashing
+- **Testing**: pytest with coverage reporting
 
 ## Project Structure
 
 ```
 snippets/
 ├── app.py                 # Flask application
+├── test_app.py            # Unit tests
 ├── requirements.txt       # Python dependencies
-├── deploy.sh             # Deployment script
-├── app.yaml.template     # App Engine config template
-├── .env.production       # Production secrets (gitignored)
+├── deploy.sh              # Deployment script (runs tests first)
+├── run_tests.sh           # Test runner script
+├── app.yaml.template      # App Engine config template
+├── .env.production        # Production secrets (gitignored)
 ├── templates/
-│   ├── index.html        # Main application UI
-│   └── login.html        # Login page
+│   ├── index.html         # Main application UI
+│   └── login.html         # Login page
 └── static/
-    ├── css/style.css     # Styles
-    └── js/app.js         # Frontend logic
+    ├── css/style.css      # Styles
+    └── js/app.js          # Frontend logic
 ```
 
 ## Quick Start
@@ -84,11 +89,13 @@ Deploy with a single command:
 ./deploy.sh
 ```
 
-The script will:
-- Load secrets from `.env.production`
-- Generate `app.yaml` with environment variables
-- Deploy to Google App Engine
-- Clean up temporary files
+The deployment script will:
+1. Run all unit tests automatically
+2. Abort deployment if any tests fail
+3. Load secrets from `.env.production`
+4. Generate `app.yaml` with environment variables
+5. Deploy to Google App Engine
+6. Clean up temporary files
 
 Your app will be live at: `https://YOUR_PROJECT_ID.appspot.com`
 
@@ -96,6 +103,27 @@ Your app will be live at: `https://YOUR_PROJECT_ID.appspot.com`
 
 - **Username**: `admin` (or as configured in `.env.production`)
 - **Password**: As set in `.env.production`
+
+## Testing
+
+Run tests locally:
+
+```bash
+./run_tests.sh
+```
+
+This will:
+- Create/validate virtual environment
+- Install dependencies
+- Run unit tests with coverage reporting
+
+**Test coverage includes:**
+- Authentication (login, logout, sessions)
+- Snippet CRUD operations
+- Date/week utilities
+- Security (password hashing)
+- Error handling
+- Firestore integration
 
 ## How Snippets Work
 
@@ -105,8 +133,8 @@ Your app will be live at: `https://YOUR_PROJECT_ID.appspot.com`
   - Start date must be a Monday
   - End date must be a Sunday
   - Only complete weeks are shown
-- **Add Snippet**: Click "Add Snippet" for weeks without entries
-- **Edit**: Click "Edit" on existing snippets
+- **Add Snippet**: Click "Add Snippets" button for weeks without entries
+- **Edit**: Click "Edit" button on existing snippets
 - **Order**: Displayed in reverse chronological order (latest first)
 
 ## Markdown Support
@@ -115,7 +143,7 @@ The editor supports standard markdown:
 
 - **Bold**: `**text**`
 - *Italic*: `*text*`
-- ~~Strikethrough~~: `~~text~~`
+- Strikethrough: `~~text~~`
 - Bullets: `- item`
 - Numbered lists: `1. item`
 - Links: `[text](url)`
@@ -128,8 +156,9 @@ The editor supports standard markdown:
 - Session-based authentication
 - HTTPS enforced in production
 - App Engine handles TLS certificates automatically
+- `app.yaml` generated dynamically, never committed to git
 
-⚠️ **Important**: Always use a strong, unique password in production.
+**Important**: Always use a strong, unique password in production.
 
 ## Configuration
 
@@ -150,6 +179,7 @@ Edit [app.yaml.template](app.yaml.template) to customize:
 - `instance_class`: F1 (free tier) or higher
 - `max_idle_instances`: Maximum instances when idle
 - Scaling parameters
+- Cache control headers
 
 ## Firestore Data Model
 
@@ -193,9 +223,11 @@ After making code changes:
 ./deploy.sh
 ```
 
+Tests will run automatically before deployment proceeds.
+
 ### Backup Data
 
-Firestore provides automatic backups. To export data:
+Firestore provides automatic backups. To export data manually:
 
 ```bash
 gcloud firestore export gs://YOUR_BUCKET/backups
@@ -211,26 +243,47 @@ This application runs on Google Cloud's **free tier**:
 
 ## Troubleshooting
 
+### Tests failing during deployment
+
+The deployment will automatically abort if tests fail. Check the test output for specific errors:
+
+```bash
+./run_tests.sh
+```
+
 ### Can't login
+
 - Verify credentials in `.env.production`
 - Check browser console for errors
 - Verify session cookies are enabled
 
 ### Deployment fails
+
 - Ensure `gcloud` is authenticated: `gcloud auth list`
 - Check project is set: `gcloud config get-value project`
 - Verify App Engine app exists: `gcloud app describe`
 
 ### Snippets not loading
+
 - Check Firestore is in Native Mode (not Datastore Mode)
 - View logs: `gcloud app logs tail`
 - Verify Firestore permissions
+- Hard refresh browser (Cmd+Shift+R or Ctrl+Shift+F5) to clear cache
 
 ### Index errors
+
 - Firestore may require indexes for complex queries
 - Follow the URL in error message to create indexes automatically
 
 ## Development
+
+### Run Tests
+
+```bash
+./run_tests.sh
+```
+
+### Local Development
 
 To run locally (requires Firestore credentials):
 
@@ -250,6 +303,15 @@ python app.py
 
 Visit: `http://localhost:5001`
 
+## Files to Never Commit
+
+The following files are gitignored and should never be committed:
+
+- `.env.production` - Contains secrets
+- `app.yaml` - Generated from template, contains secrets
+- `snippets.db` - Old SQLite database (if exists)
+- `venv/` - Virtual environment
+
 ## License
 
 MIT License - see [LICENSE](LICENSE) file for details.
@@ -260,4 +322,4 @@ This is a personal project, but feel free to fork and adapt for your needs!
 
 ---
 
-**Live URL**: https://YOUR_PROJECT_ID.appspot.com
+**Live URL**: https://snippets-prakhar.uc.r.appspot.com
