@@ -1,4 +1,7 @@
-runtime: python39
+runtime: python312
+
+# Entrypoint
+entrypoint: gunicorn -b :$PORT app:app
 
 # Instance class - F1 is free tier eligible
 instance_class: F1
@@ -10,11 +13,11 @@ automatic_scaling:
   min_pending_latency: automatic
   max_pending_latency: automatic
 
-# Environment variables
+# Environment variables (populated by deploy script)
 env_variables:
-  SNIPPET_USERNAME: 'admin'
-  SNIPPET_PASSWORD: 'changeme'  # Change this before deploying!
-  SECRET_KEY: 'change-this-to-a-random-secret-key'  # Generate with: python -c "import os; print(os.urandom(24).hex())"
+  SNIPPET_USERNAME: __SNIPPET_USERNAME__
+  SNIPPET_PASSWORD: __SNIPPET_PASSWORD__
+  SECRET_KEY: __SECRET_KEY__
 
 # Handlers
 handlers:

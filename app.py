@@ -80,19 +80,25 @@ def get_snippets():
     snippets_ref = db.collection('snippets')
 
     if start_date and end_date:
-        # Query snippets that overlap with the date range
+        # Query all snippets ordered by week_start
+        # Filter client-side for overlapping weeks
         # week overlaps with range if week_start <= end_date AND week_end >= start_date
-        query = snippets_ref.where('week_start', '<=', end_date)\
-                           .where('week_end', '>=', start_date)\
-                           .order_by('week_start', direction=firestore.Query.DESCENDING)
+        query = snippets_ref.order_by('week_start', direction=firestore.Query.DESCENDING)
+
+        snippets = []
+        for doc in query.stream():
+            snippet = doc.to_dict()
+            snippet['id'] = doc.id
+            # Filter: week overlaps if week_start <= end_date AND week_end >= start_date
+            if snippet['week_start'] <= end_date and snippet['week_end'] >= start_date:
+                snippets.append(snippet)
     else:
         query = snippets_ref.order_by('week_start', direction=firestore.Query.DESCENDING).limit(10)
-
-    snippets = []
-    for doc in query.stream():
-        snippet = doc.to_dict()
-        snippet['id'] = doc.id
-        snippets.append(snippet)
+        snippets = []
+        for doc in query.stream():
+            snippet = doc.to_dict()
+            snippet['id'] = doc.id
+            snippets.append(snippet)
 
     return jsonify(snippets)
 

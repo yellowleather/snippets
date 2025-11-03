@@ -1,227 +1,263 @@
-# Snippets - Personal Work Diary
+# Snippets - Personal Weekly Diary
 
-A simple, personal snippets tool for tracking your daily work via weekly diary entries. Inspired by Google's internal snippets tool.
+A simple, password-protected weekly diary application for tracking your work snippets. Inspired by Google's internal snippets tool.
 
 ## Features
 
-- 📝 Weekly diary entries with markdown support
-- 📅 Date navigation and filtering
-- 🔒 Password-protected (single user)
+- 📝 Weekly markdown-based diary entries
+- 📅 Date range filtering and week navigation
+- 🔒 Single-user password authentication
 - ✨ Clean, Google-inspired UI
-- 💾 SQLite database (no setup required)
-- 🌐 Easy to deploy anywhere
+- ☁️ Cloud-hosted on Google App Engine
+- 💾 Firestore database (persistent, globally accessible)
+- 🚀 Free tier eligible deployment
+
+## Architecture
+
+- **Frontend**: Vanilla JavaScript with marked.js for markdown rendering
+- **Backend**: Python Flask application
+- **Database**: Google Cloud Firestore (Native Mode)
+- **Hosting**: Google App Engine (Python 3.12)
+- **Authentication**: Session-based with password hashing
+
+## Project Structure
+
+```
+snippets/
+├── app.py                 # Flask application
+├── requirements.txt       # Python dependencies
+├── deploy.sh             # Deployment script
+├── app.yaml.template     # App Engine config template
+├── .env.production       # Production secrets (gitignored)
+├── templates/
+│   ├── index.html        # Main application UI
+│   └── login.html        # Login page
+└── static/
+    ├── css/style.css     # Styles
+    └── js/app.js         # Frontend logic
+```
 
 ## Quick Start
 
-### Local Development
+### Prerequisites
 
-1. **Install dependencies:**
+- Google Cloud account
+- `gcloud` CLI installed and configured
+- Python 3.12+
+
+### Initial Setup
+
+1. **Clone the repository**
    ```bash
-   pip install -r requirements.txt
+   git clone <your-repo-url>
+   cd snippets
    ```
 
-2. **Set your password (optional, default is "changeme"):**
+2. **Create your secrets file**
    ```bash
-   export SNIPPET_PASSWORD="your-secure-password"
+   cat > .env.production << 'EOF'
+   SECRET_KEY=$(python3 -c "import os; print(os.urandom(24).hex())")
+   SNIPPET_USERNAME=admin
+   SNIPPET_PASSWORD=YourSecurePassword
+   EOF
    ```
 
-3. **Run the application:**
+3. **Configure Google Cloud**
    ```bash
-   python app.py
+   # Set your project
+   gcloud config set project YOUR_PROJECT_ID
+
+   # Create App Engine app (first time only)
+   gcloud app create --region=us-central
+
+   # Create Firestore database in Native Mode
+   gcloud firestore databases create \
+     --location=nam5 \
+     --type=firestore-native
    ```
 
-4. **Open in browser:**
-   ```
-   http://localhost:5000
-   ```
+### Deployment
 
-5. **Login with:**
-   - Username: `admin`
-   - Password: `changeme` (or your custom password)
+Deploy with a single command:
 
-## Deployment Options
+```bash
+./deploy.sh
+```
 
-### Option 1: Deploy to Render.com (Free & Easy)
+The script will:
+- Load secrets from `.env.production`
+- Generate `app.yaml` with environment variables
+- Deploy to Google App Engine
+- Clean up temporary files
 
-1. **Create account at [render.com](https://render.com)**
+Your app will be live at: `https://YOUR_PROJECT_ID.appspot.com`
 
-2. **Create a new Web Service:**
-   - Connect your GitHub repository (or upload files)
-   - Select "Python" as the environment
-   - Build Command: `pip install -r requirements.txt`
-   - Start Command: `gunicorn app:app`
+### Login
 
-3. **Add environment variables:**
-   - `SECRET_KEY`: A random secret key (generate one: `python -c "import os; print(os.urandom(24).hex())"`)
-   - `SNIPPET_PASSWORD`: Your secure password
-   - `SNIPPET_USERNAME`: Your username (optional, defaults to "admin")
+- **Username**: `admin` (or as configured in `.env.production`)
+- **Password**: As set in `.env.production`
 
-4. **Deploy!** Your app will be live at `https://your-app-name.onrender.com`
+## How Snippets Work
 
-### Option 2: Deploy to Heroku
+- **Week Definition**: Monday to Sunday (ISO week standard)
+- **Default View**: Current week minus 4 weeks to current week
+- **Date Selection**:
+  - Start date must be a Monday
+  - End date must be a Sunday
+  - Only complete weeks are shown
+- **Add Snippet**: Click "Add Snippet" for weeks without entries
+- **Edit**: Click "Edit" on existing snippets
+- **Order**: Displayed in reverse chronological order (latest first)
 
-1. **Install Heroku CLI and login**
-
-2. **Create a Procfile:**
-   ```
-   web: gunicorn app:app
-   ```
-
-3. **Deploy:**
-   ```bash
-   heroku create your-snippets-app
-   heroku config:set SECRET_KEY="your-random-secret-key"
-   heroku config:set SNIPPET_PASSWORD="your-secure-password"
-   git push heroku main
-   ```
-
-### Option 3: Deploy to a VPS (DigitalOcean, Linode, etc.)
-
-1. **SSH into your server**
-
-2. **Install dependencies:**
-   ```bash
-   sudo apt update
-   sudo apt install python3-pip nginx
-   ```
-
-3. **Clone your code and install requirements:**
-   ```bash
-   cd /var/www
-   git clone your-repo
-   cd your-repo
-   pip3 install -r requirements.txt
-   pip3 install gunicorn
-   ```
-
-4. **Create systemd service** (`/etc/systemd/system/snippets.service`):
-   ```ini
-   [Unit]
-   Description=Snippets Application
-   After=network.target
-
-   [Service]
-   User=www-data
-   WorkingDirectory=/var/www/your-repo
-   Environment="SECRET_KEY=your-secret-key"
-   Environment="SNIPPET_PASSWORD=your-password"
-   ExecStart=/usr/local/bin/gunicorn -w 4 -b 127.0.0.1:8000 app:app
-
-   [Install]
-   WantedBy=multi-user.target
-   ```
-
-5. **Configure Nginx** (`/etc/nginx/sites-available/snippets`):
-   ```nginx
-   server {
-       listen 80;
-       server_name your-domain.com;
-
-       location / {
-           proxy_pass http://127.0.0.1:8000;
-           proxy_set_header Host $host;
-           proxy_set_header X-Real-IP $remote_addr;
-       }
-   }
-   ```
-
-6. **Enable and start:**
-   ```bash
-   sudo systemctl enable snippets
-   sudo systemctl start snippets
-   sudo ln -s /etc/nginx/sites-available/snippets /etc/nginx/sites-enabled/
-   sudo systemctl restart nginx
-   ```
-
-## Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `SNIPPET_USERNAME` | Login username | `admin` |
-| `SNIPPET_PASSWORD` | Login password | `changeme` |
-| `SECRET_KEY` | Flask secret key for sessions | (random) |
-
-## Usage
-
-### Creating a Snippet
-
-1. Click "Add Snippet" button
-2. Write your content using markdown
-3. Click "Publish"
-
-### Editing a Snippet
-
-1. Click "Edit" on any snippet
-2. Modify the content
-3. Click "Publish"
-
-### Navigation
-
-- Use date pickers to filter by date range
-- Use arrow buttons to navigate weeks
-- Click "Go to current week" to jump to today
-
-### Markdown Support
+## Markdown Support
 
 The editor supports standard markdown:
+
 - **Bold**: `**text**`
 - *Italic*: `*text*`
 - ~~Strikethrough~~: `~~text~~`
-- Lists: `- item` or `1. item`
+- Bullets: `- item`
+- Numbered lists: `1. item`
 - Links: `[text](url)`
 - Headers: `# H1`, `## H2`, etc.
 
-## Security Notes
+## Security
 
-⚠️ **Important Security Recommendations:**
+- Secrets stored in `.env.production` (gitignored)
+- Passwords hashed with PBKDF2-SHA256
+- Session-based authentication
+- HTTPS enforced in production
+- App Engine handles TLS certificates automatically
 
-1. **Always change the default password!**
-2. Use a strong, unique password
-3. Use HTTPS in production (Render/Heroku provide this automatically)
-4. Keep your SECRET_KEY truly secret and random
-5. Consider adding rate limiting for login attempts
+⚠️ **Important**: Always use a strong, unique password in production.
 
-## Database
+## Configuration
 
-The app uses SQLite with a single database file: `snippets.db`
+### Environment Variables
 
-To backup your data, simply copy this file. To restore, replace it.
+All configuration is done via `.env.production`:
 
-## Customization
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `SECRET_KEY` | Flask session secret (random hex string) | Yes |
+| `SNIPPET_USERNAME` | Login username | Yes |
+| `SNIPPET_PASSWORD` | Login password | Yes |
 
-### Change the Theme
+### App Engine Settings
 
-Edit `/static/css/style.css` to customize colors, fonts, and styling.
+Edit [app.yaml.template](app.yaml.template) to customize:
 
-### Add More Features
+- `instance_class`: F1 (free tier) or higher
+- `max_idle_instances`: Maximum instances when idle
+- Scaling parameters
 
-The codebase is simple and well-commented. Some ideas:
-- Add tags/categories
-- Export to PDF or Markdown
-- Search functionality
-- Multiple users with separate notebooks
-- Email reminders
+## Firestore Data Model
+
+### Collection: `snippets`
+
+Each document contains:
+
+```javascript
+{
+  week_start: "2025-10-27",     // Monday (YYYY-MM-DD)
+  week_end: "2025-11-02",       // Sunday (YYYY-MM-DD)
+  content: "# Week summary...", // Markdown content
+  created_at: Timestamp,        // Auto-generated
+  updated_at: Timestamp         // Auto-updated
+}
+```
+
+## Maintenance
+
+### View Logs
+
+```bash
+gcloud app logs tail
+```
+
+### View Firestore Data
+
+```bash
+# Via console
+open https://console.cloud.google.com/firestore
+
+# Via CLI
+gcloud firestore databases list
+```
+
+### Update Deployment
+
+After making code changes:
+
+```bash
+./deploy.sh
+```
+
+### Backup Data
+
+Firestore provides automatic backups. To export data:
+
+```bash
+gcloud firestore export gs://YOUR_BUCKET/backups
+```
+
+## Cost
+
+This application runs on Google Cloud's **free tier**:
+
+- App Engine F1 instance: **Free** (28 instance hours/day)
+- Firestore: **Free** (1 GB storage, 50K reads/day, 20K writes/day)
+- Typical usage for personal diary: **$0/month**
 
 ## Troubleshooting
 
-**Can't login:**
-- Check your username and password
-- Make sure environment variables are set correctly
+### Can't login
+- Verify credentials in `.env.production`
 - Check browser console for errors
+- Verify session cookies are enabled
 
-**Snippets not saving:**
-- Check file permissions on `snippets.db`
-- Check server logs for errors
+### Deployment fails
+- Ensure `gcloud` is authenticated: `gcloud auth list`
+- Check project is set: `gcloud config get-value project`
+- Verify App Engine app exists: `gcloud app describe`
 
-**App won't start:**
-- Verify all dependencies are installed
-- Check for port conflicts (default: 5000)
-- Review error messages in console
+### Snippets not loading
+- Check Firestore is in Native Mode (not Datastore Mode)
+- View logs: `gcloud app logs tail`
+- Verify Firestore permissions
+
+### Index errors
+- Firestore may require indexes for complex queries
+- Follow the URL in error message to create indexes automatically
+
+## Development
+
+To run locally (requires Firestore credentials):
+
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Set environment variables
+export $(cat .env.production | xargs)
+
+# Set Google Cloud credentials
+export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
+
+# Run
+python app.py
+```
+
+Visit: `http://localhost:5001`
 
 ## License
 
-MIT License - feel free to modify and use as you wish!
+MIT License - see [LICENSE](LICENSE) file for details.
 
-## Support
+## Contributing
 
-For issues or questions, check the code comments or create an issue in your repository.
+This is a personal project, but feel free to fork and adapt for your needs!
+
+---
+
+**Live URL**: https://YOUR_PROJECT_ID.appspot.com
