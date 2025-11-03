@@ -22,6 +22,9 @@ app.secret_key = os.environ.get('SECRET_KEY', 'change-this-to-a-random-secret-ke
 USERNAME = os.environ.get('SNIPPET_USERNAME', 'admin')
 PASSWORD_HASH = generate_password_hash(os.environ.get('SNIPPET_PASSWORD', 'changeme'), method='pbkdf2:sha256')
 
+# Feature Flags
+GOALS_ENABLED = os.environ.get('GOALS_ENABLED', 'true').lower() == 'true'
+
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -67,6 +70,14 @@ def logout():
 @login_required
 def index():
     return render_template('index.html')
+
+@app.route('/api/config', methods=['GET'])
+@login_required
+def get_config():
+    """Return feature flags and configuration"""
+    return jsonify({
+        'goals_enabled': GOALS_ENABLED
+    })
 
 @app.route('/api/snippets', methods=['GET'])
 @login_required
@@ -190,6 +201,127 @@ def get_week_info(date_str):
         })
     except ValueError:
         return jsonify({'error': 'Invalid date format'}), 400
+
+
+# Goals API endpoints
+@app.route('/api/goals', methods=['GET'])
+@login_required
+def get_goals():
+    if not GOALS_ENABLED:
+        return jsonify({'error': 'Goals feature is disabled'}), 404
+
+    if not FIRESTORE_AVAILABLE:
+        return jsonify({'error': 'Firestore not available'}), 500
+
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+
+    goals_ref = db.collection('goals')
+
+    if start_date and end_date:
+        query = goals_ref.order_by('week_start', direction=firestore.Query.DESCENDING)
+
+        goals = []
+        for doc in query.stream():
+            goal = doc.to_dict()
+            goal['id'] = doc.id
+            if goal['week_start'] <= end_date and goal['week_end'] >= start_date:
+                goals.append(goal)
+    else:
+        query = goals_ref.order_by('week_start', direction=firestore.Query.DESCENDING).limit(10)
+        goals = []
+        for doc in query.stream():
+            goal = doc.to_dict()
+            goal['id'] = doc.id
+            goals.append(goal)
+
+    return jsonify(goals)
+
+
+@app.route('/api/goals/<goal_id>', methods=['GET'])
+@login_required
+def get_goal(goal_id):
+    if not GOALS_ENABLED:
+        return jsonify({'error': 'Goals feature is disabled'}), 404
+
+    if not FIRESTORE_AVAILABLE:
+        return jsonify({'error': 'Firestore not available'}), 500
+
+    doc_ref = db.collection('goals').document(goal_id)
+    doc = doc_ref.get()
+
+    if doc.exists:
+        goal = doc.to_dict()
+        goal['id'] = doc.id
+        return jsonify(goal)
+    return jsonify({'error': 'Goal not found'}), 404
+
+
+@app.route('/api/goals', methods=['POST'])
+@login_required
+def create_goal():
+    if not GOALS_ENABLED:
+        return jsonify({'error': 'Goals feature is disabled'}), 404
+
+    if not FIRESTORE_AVAILABLE:
+        return jsonify({'error': 'Firestore not available'}), 500
+
+    data = request.get_json()
+    week_start = data.get('week_start')
+    week_end = data.get('week_end')
+    content = data.get('content')
+
+    if not all([week_start, week_end, content]):
+        return jsonify({'error': 'Missing required fields'}), 400
+
+    doc_ref = db.collection('goals').document()
+    doc_ref.set({
+        'week_start': week_start,
+        'week_end': week_end,
+        'content': content,
+        'created_at': firestore.SERVER_TIMESTAMP,
+        'updated_at': firestore.SERVER_TIMESTAMP
+    })
+
+    return jsonify({'id': doc_ref.id, 'success': True})
+
+
+@app.route('/api/goals/<goal_id>', methods=['PUT'])
+@login_required
+def update_goal(goal_id):
+    if not GOALS_ENABLED:
+        return jsonify({'error': 'Goals feature is disabled'}), 404
+
+    if not FIRESTORE_AVAILABLE:
+        return jsonify({'error': 'Firestore not available'}), 500
+
+    data = request.get_json()
+    content = data.get('content')
+
+    if not content:
+        return jsonify({'error': 'Content is required'}), 400
+
+    doc_ref = db.collection('goals').document(goal_id)
+    doc_ref.update({
+        'content': content,
+        'updated_at': firestore.SERVER_TIMESTAMP
+    })
+
+    return jsonify({'success': True})
+
+
+@app.route('/api/goals/<goal_id>', methods=['DELETE'])
+@login_required
+def delete_goal(goal_id):
+    if not GOALS_ENABLED:
+        return jsonify({'error': 'Goals feature is disabled'}), 404
+
+    if not FIRESTORE_AVAILABLE:
+        return jsonify({'error': 'Firestore not available'}), 500
+
+    db.collection('goals').document(goal_id).delete()
+
+    return jsonify({'success': True})
 
 
 if __name__ == '__main__':

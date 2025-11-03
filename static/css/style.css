@@ -164,6 +164,35 @@ nav {
     margin-bottom: 20px;
 }
 
+.week-columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+}
+
+.week-columns.single-column {
+    grid-template-columns: 1fr;
+}
+
+.week-column {
+    min-width: 0;
+}
+
+.column-title {
+    font-size: 16px;
+    font-weight: 500;
+    color: #5f6368;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #e8eaed;
+}
+
+@media (max-width: 900px) {
+    .week-columns {
+        grid-template-columns: 1fr;
+    }
+}
+
 .week-badge {
     padding: 4px 12px;
     background: #e8f0fe;
@@ -226,6 +255,13 @@ nav {
     text-decoration: underline;
 }
 
+.snippet-actions {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-top: 15px;
+}
+
 .edit-btn {
     color: #1a73e8;
     font-size: 14px;
@@ -233,12 +269,31 @@ nav {
     border: none;
     background: none;
     cursor: pointer;
-    margin-top: 15px;
     padding: 0;
 }
 
 .edit-btn:hover {
     text-decoration: underline;
+}
+
+.delete-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: 1px solid #dadce0;
+    border-radius: 4px;
+    background: white;
+    cursor: pointer;
+    color: #d93025;
+    padding: 0;
+    transition: background 0.2s;
+}
+
+.delete-btn:hover {
+    background: #fce8e6;
+    border-color: #d93025;
 }
 
 .add-snippet-btn {

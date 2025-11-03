@@ -1,13 +1,29 @@
 // Global state
 let currentSnippetId = null;
+let currentGoalId = null;
 let currentWeekStart = null;
 let currentWeekEnd = null;
+let currentModalType = null; // 'snippet' or 'goal'
+let goalsEnabled = true; // Default to true, will be updated from server
 
 // Initialize the app
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+    await loadConfig();
     initializeDefaultView();
     setupDateInputs();
 });
+
+async function loadConfig() {
+    try {
+        const response = await fetch('/api/config');
+        const config = await response.json();
+        goalsEnabled = config.goals_enabled;
+    } catch (error) {
+        console.error('Error loading config:', error);
+        // Default to true if config fails to load
+        goalsEnabled = true;
+    }
+}
 
 function setupDateInputs() {
     const startInput = document.getElementById('startDate');
@@ -192,16 +208,31 @@ async function loadSnippets() {
     const queryEnd = universe[universe.length - 1].week_end;
 
     try {
-        const response = await fetch(`/api/snippets?start_date=${queryStart}&end_date=${queryEnd}`);
-        const snippets = await response.json();
+        // Load snippets and conditionally load goals
+        const promises = [
+            fetch(`/api/snippets?start_date=${queryStart}&end_date=${queryEnd}`)
+        ];
 
-        // Map snippets by week_start for easy lookup
+        if (goalsEnabled) {
+            promises.push(fetch(`/api/goals?start_date=${queryStart}&end_date=${queryEnd}`));
+        }
+
+        const responses = await Promise.all(promises);
+        const snippets = await responses[0].json();
+        const goals = goalsEnabled && responses[1] ? await responses[1].json() : [];
+
+        // Map snippets and goals by week_start for easy lookup
         const snippetsMap = {};
         snippets.forEach(s => { snippetsMap[s.week_start] = s; });
 
-        displayWeeks(universe, snippetsMap);
+        const goalsMap = {};
+        if (goalsEnabled) {
+            goals.forEach(g => { goalsMap[g.week_start] = g; });
+        }
+
+        displayWeeks(universe, snippetsMap, goalsMap);
     } catch (error) {
-        console.error('Error loading snippets:', error);
+        console.error('Error loading data:', error);
     }
 }
 
@@ -250,8 +281,8 @@ function computeUniverseWeeks(startDateStr, endDateStr) {
     return weeks;
 }
 
-// Render the weeks universe and snippets map
-function displayWeeks(weeks, snippetsMap) {
+// Render the weeks universe with both snippets and goals
+function displayWeeks(weeks, snippetsMap, goalsMap) {
     const container = document.getElementById('snippetsContainer');
 
     if (!weeks || weeks.length === 0) {
@@ -272,23 +303,71 @@ function displayWeeks(weeks, snippetsMap) {
         html += `  <div class="week-header">`;
         html += `    <span class="week-badge">Week ${weekNum}</span>`;
         html += `    <h2 class="week-title">${startFormatted} – ${endFormatted}</h2>`;
-
-        // If snippet exists for this week, render it
-        const snippet = snippetsMap[week.week_start];
         html += `  </div>`;
-        html += `  <div class="snippet-content">`;
+
+        html += `  <div class="week-columns${goalsEnabled ? '' : ' single-column'}">`;
+
+        // Left column: Snippets (What was done)
+        html += `    <div class="week-column">`;
+        if (goalsEnabled) {
+            html += `      <h3 class="column-title">Work Done</h3>`;
+        }
+        html += `      <div class="snippet-content">`;
+
+        const snippet = snippetsMap[week.week_start];
         if (snippet) {
             const enableMarkdown = true;
             const contentHtml = enableMarkdown ? marked.parse(snippet.content) : escapeHtml(snippet.content);
             html += contentHtml;
-            html += `  </div>`;
-            html += `  <button class="edit-btn" onclick="openEditModal('${snippet.id}')">Edit</button>`;
+            html += `      </div>`;
+            html += `      <div class="snippet-actions">`;
+            html += `        <button class="edit-btn" onclick="openEditSnippetModal('${snippet.id}')">Edit</button>`;
+            html += `        <button class="delete-btn" onclick="deleteSnippet('${snippet.id}')" title="Delete snippet">`;
+            html += `          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">`;
+            html += `            <polyline points="3 6 5 6 21 6"></polyline>`;
+            html += `            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>`;
+            html += `            <line x1="10" y1="11" x2="10" y2="17"></line>`;
+            html += `            <line x1="14" y1="11" x2="14" y2="17"></line>`;
+            html += `          </svg>`;
+            html += `        </button>`;
+            html += `      </div>`;
         } else {
-            // No snippet for this week — per spec show only the Add Snippets button (no "No snippets" text)
-            html += `  </div>`;
-            html += `  <button class="add-snippet-btn" onclick="openNewSnippetModalForWeek('${week.week_start}','${week.week_end}')">Add Snippets</button>`;
+            html += `      </div>`;
+            html += `      <button class="add-snippet-btn" onclick="openNewSnippetModalForWeek('${week.week_start}','${week.week_end}')">Add Snippets</button>`;
+        }
+        html += `    </div>`;
+
+        // Right column: Goals (What was planned) - only if feature is enabled
+        if (goalsEnabled) {
+            html += `    <div class="week-column">`;
+            html += `      <h3 class="column-title">Weekly Goals</h3>`;
+            html += `      <div class="snippet-content">`;
+
+            const goal = goalsMap[week.week_start];
+            if (goal) {
+                const enableMarkdown = true;
+                const contentHtml = enableMarkdown ? marked.parse(goal.content) : escapeHtml(goal.content);
+                html += contentHtml;
+                html += `      </div>`;
+                html += `      <div class="snippet-actions">`;
+                html += `        <button class="edit-btn" onclick="openEditGoalModal('${goal.id}')">Edit</button>`;
+                html += `        <button class="delete-btn" onclick="deleteGoal('${goal.id}')" title="Delete goal">`;
+                html += `          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">`;
+                html += `            <polyline points="3 6 5 6 21 6"></polyline>`;
+                html += `            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>`;
+                html += `            <line x1="10" y1="11" x2="10" y2="17"></line>`;
+                html += `            <line x1="14" y1="11" x2="14" y2="17"></line>`;
+                html += `          </svg>`;
+                html += `        </button>`;
+                html += `      </div>`;
+            } else {
+                html += `      </div>`;
+                html += `      <button class="add-snippet-btn" onclick="openNewGoalModalForWeek('${week.week_start}','${week.week_end}')">Add Goals</button>`;
+            }
+            html += `    </div>`;
         }
 
+        html += `  </div>`;
         html += `</div>`;
     }
 
@@ -384,6 +463,8 @@ function openNewSnippetModal() {
 // Open the new snippet modal for a specific week (week boundaries passed)
 function openNewSnippetModalForWeek(weekStart, weekEnd) {
     currentSnippetId = null;
+    currentGoalId = null;
+    currentModalType = 'snippet';
     currentWeekStart = weekStart;
     currentWeekEnd = weekEnd;
 
@@ -391,32 +472,77 @@ function openNewSnippetModalForWeek(weekStart, weekEnd) {
     const startFormatted = formatDateDisplay(weekStart);
     const endFormatted = formatDateDisplay(weekEnd);
 
-    document.getElementById('modalTitle').textContent = `New Snippet - Week ${weekNum} (${startFormatted}–${endFormatted.split(',')[0]}, ${endFormatted.split(',')[1]})`;
+    document.getElementById('modalTitle').textContent = `New Work Done - Week ${weekNum} (${startFormatted}–${endFormatted.split(',')[0]}, ${endFormatted.split(',')[1]})`;
     document.getElementById('snippetContent').value = '';
 
     showModal();
 }
 
-async function openEditModal(snippetId) {
+// Open the new goal modal for a specific week (week boundaries passed)
+function openNewGoalModalForWeek(weekStart, weekEnd) {
+    currentSnippetId = null;
+    currentGoalId = null;
+    currentModalType = 'goal';
+    currentWeekStart = weekStart;
+    currentWeekEnd = weekEnd;
+
+    const weekNum = getWeekNumber(weekStart);
+    const startFormatted = formatDateDisplay(weekStart);
+    const endFormatted = formatDateDisplay(weekEnd);
+
+    document.getElementById('modalTitle').textContent = `New Weekly Goals - Week ${weekNum} (${startFormatted}–${endFormatted.split(',')[0]}, ${endFormatted.split(',')[1]})`;
+    document.getElementById('snippetContent').value = '';
+
+    showModal();
+}
+
+async function openEditSnippetModal(snippetId) {
     try {
         const response = await fetch(`/api/snippets/${snippetId}`);
         const snippet = await response.json();
-        
+
         currentSnippetId = snippetId;
+        currentGoalId = null;
+        currentModalType = 'snippet';
         currentWeekStart = snippet.week_start;
         currentWeekEnd = snippet.week_end;
-        
+
         const weekNum = getWeekNumber(snippet.week_start);
         const startFormatted = formatDateDisplay(snippet.week_start);
         const endFormatted = formatDateDisplay(snippet.week_end);
-        
-        document.getElementById('modalTitle').textContent = `Edit Snippet - Week ${weekNum} (${startFormatted}–${endFormatted.split(',')[0]}, ${endFormatted.split(',')[1]})`;
+
+        document.getElementById('modalTitle').textContent = `Edit Work Done - Week ${weekNum} (${startFormatted}–${endFormatted.split(',')[0]}, ${endFormatted.split(',')[1]})`;
         document.getElementById('snippetContent').value = snippet.content;
-        
+
         showModal();
     } catch (error) {
         console.error('Error loading snippet:', error);
         alert('Failed to load snippet');
+    }
+}
+
+async function openEditGoalModal(goalId) {
+    try {
+        const response = await fetch(`/api/goals/${goalId}`);
+        const goal = await response.json();
+
+        currentSnippetId = null;
+        currentGoalId = goalId;
+        currentModalType = 'goal';
+        currentWeekStart = goal.week_start;
+        currentWeekEnd = goal.week_end;
+
+        const weekNum = getWeekNumber(goal.week_start);
+        const startFormatted = formatDateDisplay(goal.week_start);
+        const endFormatted = formatDateDisplay(goal.week_end);
+
+        document.getElementById('modalTitle').textContent = `Edit Weekly Goals - Week ${weekNum} (${startFormatted}–${endFormatted.split(',')[0]}, ${endFormatted.split(',')[1]})`;
+        document.getElementById('snippetContent').value = goal.content;
+
+        showModal();
+    } catch (error) {
+        console.error('Error loading goal:', error);
+        alert('Failed to load goal');
     }
 }
 
@@ -427,22 +553,42 @@ function showModal() {
 function closeModal() {
     document.getElementById('editModal').classList.remove('show');
     currentSnippetId = null;
+    currentGoalId = null;
+    currentModalType = null;
 }
 
 async function saveSnippet() {
     const content = document.getElementById('snippetContent').value.trim();
-    
+
+    // Determine if we're working with snippet or goal
+    const isGoal = currentModalType === 'goal';
+    const currentId = isGoal ? currentGoalId : currentSnippetId;
+    const apiPath = isGoal ? '/api/goals' : '/api/snippets';
+    const itemType = isGoal ? 'goal' : 'snippet';
+
+    // If content is empty and we're editing an existing item, delete it instead
+    if (!content && currentId) {
+        if (confirm(`Empty content will delete this ${itemType}. Continue?`)) {
+            if (isGoal) {
+                await deleteGoal(currentId, true);
+            } else {
+                await deleteSnippet(currentId, true);
+            }
+        }
+        return;
+    }
+
     if (!content) {
         alert('Please enter some content');
         return;
     }
-    
+
     try {
         let response;
-        
-        if (currentSnippetId) {
-            // Update existing snippet
-            response = await fetch(`/api/snippets/${currentSnippetId}`, {
+
+        if (currentId) {
+            // Update existing item
+            response = await fetch(`${apiPath}/${currentId}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json'
@@ -450,8 +596,8 @@ async function saveSnippet() {
                 body: JSON.stringify({ content })
             });
         } else {
-            // Create new snippet
-            response = await fetch('/api/snippets', {
+            // Create new item
+            response = await fetch(apiPath, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -463,16 +609,60 @@ async function saveSnippet() {
                 })
             });
         }
-        
+
         if (response.ok) {
             closeModal();
             await loadSnippets();
         } else {
-            alert('Failed to save snippet');
+            alert(`Failed to save ${itemType}`);
         }
     } catch (error) {
-        console.error('Error saving snippet:', error);
-        alert('Failed to save snippet');
+        console.error(`Error saving ${itemType}:`, error);
+        alert(`Failed to save ${itemType}`);
+    }
+}
+
+async function deleteSnippet(snippetId, skipConfirm = false) {
+    if (!skipConfirm && !confirm('Are you sure you want to delete this snippet?')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/snippets/${snippetId}`, {
+            method: 'DELETE'
+        });
+
+        if (response.ok) {
+            closeModal();
+            await loadSnippets();
+        } else {
+            alert('Failed to delete snippet');
+        }
+    } catch (error) {
+        console.error('Error deleting snippet:', error);
+        alert('Failed to delete snippet');
+    }
+}
+
+async function deleteGoal(goalId, skipConfirm = false) {
+    if (!skipConfirm && !confirm('Are you sure you want to delete this goal?')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/goals/${goalId}`, {
+            method: 'DELETE'
+        });
+
+        if (response.ok) {
+            closeModal();
+            await loadSnippets();
+        } else {
+            alert('Failed to delete goal');
+        }
+    } catch (error) {
+        console.error('Error deleting goal:', error);
+        alert('Failed to delete goal');
     }
 }
 

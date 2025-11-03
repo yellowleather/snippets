@@ -1,9 +1,10 @@
 # Snippets - Personal Weekly Diary
 
-A simple, password-protected weekly diary application for tracking your work snippets. Inspired by Google's internal snippets tool.
+A simple, password-protected weekly diary application for tracking your work snippets and goals. Inspired by Google's internal snippets tool.
 
 ## Features
 
+- **Dual-column weekly tracking**: Work Done (left) and Weekly Goals (right)
 - Weekly markdown-based diary entries
 - Date range filtering and week navigation
 - Single-user password authentication
@@ -12,7 +13,7 @@ A simple, password-protected weekly diary application for tracking your work sni
 - Firestore database (persistent, globally accessible)
 - Free tier eligible deployment
 - Automated testing before deployment
-- 89% test coverage with 27 unit tests
+- 87% test coverage with 36 unit tests
 
 ## Architecture
 
@@ -133,8 +134,13 @@ This will:
   - Start date must be a Monday
   - End date must be a Sunday
   - Only complete weeks are shown
-- **Add Snippet**: Click "Add Snippets" button for weeks without entries
-- **Edit**: Click "Edit" button on existing snippets
+- **Two-Column Layout**:
+  - **Left Column (Work Done)**: Record what you accomplished this week
+  - **Right Column (Weekly Goals)**: Record what you planned or are planning to do
+  - Each column has independent Add/Edit/Delete buttons
+- **Add Entry**: Click "Add Snippets" or "Add Goals" button for weeks without entries
+- **Edit**: Click "Edit" button on existing entries
+- **Delete**: Click trash icon to delete an entry, or save empty content to delete
 - **Order**: Displayed in reverse chronological order (latest first)
 
 ## Markdown Support
@@ -166,11 +172,31 @@ The editor supports standard markdown:
 
 All configuration is done via `.env.production`:
 
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `SECRET_KEY` | Flask session secret (random hex string) | Yes |
-| `SNIPPET_USERNAME` | Login username | Yes |
-| `SNIPPET_PASSWORD` | Login password | Yes |
+| Variable | Description | Required | Default |
+|----------|-------------|----------|---------|
+| `SECRET_KEY` | Flask session secret (random hex string) | Yes | - |
+| `SNIPPET_USERNAME` | Login username | Yes | - |
+| `SNIPPET_PASSWORD` | Login password | Yes | - |
+| `GOALS_ENABLED` | Enable/disable Weekly Goals feature | No | `true` |
+
+### Feature Flags
+
+#### Weekly Goals (`GOALS_ENABLED`)
+
+The Weekly Goals feature is controlled by the `GOALS_ENABLED` environment variable:
+
+- **Enabled (`true`)**: Shows two-column layout with Work Done (left) and Weekly Goals (right)
+- **Disabled (`false`)**: Shows single-column layout with only Work Done (snippets)
+
+To disable the goals feature, add to `.env.production`:
+```bash
+GOALS_ENABLED=false
+```
+
+When disabled:
+- Goals API endpoints return 404
+- Frontend shows single-column layout without "Weekly Goals" column
+- All goal-related UI elements are hidden
 
 ### App Engine Settings
 
@@ -185,7 +211,7 @@ Edit [app.yaml.template](app.yaml.template) to customize:
 
 ### Collection: `snippets`
 
-Each document contains:
+Stores work done for each week. Each document contains:
 
 ```javascript
 {
@@ -194,6 +220,20 @@ Each document contains:
   content: "# Week summary...", // Markdown content
   created_at: Timestamp,        // Auto-generated
   updated_at: Timestamp         // Auto-updated
+}
+```
+
+### Collection: `goals`
+
+Stores weekly goals for each week. Each document contains:
+
+```javascript
+{
+  week_start: "2025-10-27",          // Monday (YYYY-MM-DD)
+  week_end: "2025-11-02",            // Sunday (YYYY-MM-DD)
+  content: "# Weekly goals...",      // Markdown content
+  created_at: Timestamp,             // Auto-generated
+  updated_at: Timestamp              // Auto-updated
 }
 ```
 

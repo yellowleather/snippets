@@ -412,5 +412,179 @@ class TestSessionManagement:
         assert response.location.endswith('/login')
 
 
+class TestGoalsCRUD:
+    """Test goals CRUD operations"""
+
+    def test_get_goals_requires_auth(self, client):
+        """Test that getting goals requires authentication"""
+        response = client.get('/api/goals')
+        assert response.status_code == 302  # Redirect to login
+
+    def test_create_goal(self, authenticated_client, mock_firestore):
+        """Test creating a new goal"""
+        mock_doc_ref = Mock()
+        mock_doc_ref.id = 'test-goal-id'
+        mock_collection = Mock()
+        mock_collection.document.return_value = mock_doc_ref
+        mock_firestore.collection.return_value = mock_collection
+
+        goal_data = {
+            'week_start': '2025-10-27',
+            'week_end': '2025-11-02',
+            'content': '# Weekly Goals\n\n- Complete feature X\n- Review PRs'
+        }
+
+        with patch('app.FIRESTORE_AVAILABLE', True):
+            response = authenticated_client.post('/api/goals',
+                                                data=json.dumps(goal_data),
+                                                content_type='application/json')
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['success'] is True
+        assert 'id' in data
+
+    def test_create_goal_missing_fields(self, authenticated_client, mock_firestore):
+        """Test creating goal with missing required fields"""
+        incomplete_data = {
+            'week_start': '2025-10-27',
+            # Missing week_end and content
+        }
+
+        with patch('app.FIRESTORE_AVAILABLE', True):
+            response = authenticated_client.post('/api/goals',
+                                                data=json.dumps(incomplete_data),
+                                                content_type='application/json')
+
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert 'error' in data
+
+    def test_get_goal_by_id(self, authenticated_client, mock_firestore):
+        """Test retrieving a specific goal by ID"""
+        mock_doc = Mock()
+        mock_doc.exists = True
+        mock_doc.id = 'test-goal-id'
+        mock_doc.to_dict.return_value = {
+            'week_start': '2025-10-27',
+            'week_end': '2025-11-02',
+            'content': 'Complete feature X'
+        }
+
+        mock_doc_ref = Mock()
+        mock_doc_ref.get.return_value = mock_doc
+
+        mock_collection = Mock()
+        mock_collection.document.return_value = mock_doc_ref
+        mock_firestore.collection.return_value = mock_collection
+
+        with patch('app.FIRESTORE_AVAILABLE', True):
+            response = authenticated_client.get('/api/goals/test-goal-id')
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['week_start'] == '2025-10-27'
+        assert data['content'] == 'Complete feature X'
+
+    def test_get_nonexistent_goal(self, authenticated_client, mock_firestore):
+        """Test retrieving a goal that doesn't exist"""
+        mock_doc = Mock()
+        mock_doc.exists = False
+
+        mock_doc_ref = Mock()
+        mock_doc_ref.get.return_value = mock_doc
+
+        mock_collection = Mock()
+        mock_collection.document.return_value = mock_doc_ref
+        mock_firestore.collection.return_value = mock_collection
+
+        with patch('app.FIRESTORE_AVAILABLE', True):
+            response = authenticated_client.get('/api/goals/nonexistent-id')
+
+        assert response.status_code == 404
+        data = json.loads(response.data)
+        assert 'error' in data
+
+    def test_update_goal(self, authenticated_client, mock_firestore):
+        """Test updating an existing goal"""
+        mock_doc_ref = Mock()
+        mock_collection = Mock()
+        mock_collection.document.return_value = mock_doc_ref
+        mock_firestore.collection.return_value = mock_collection
+
+        update_data = {
+            'content': '# Updated Goals\n\nNew priorities'
+        }
+
+        with patch('app.FIRESTORE_AVAILABLE', True):
+            response = authenticated_client.put('/api/goals/test-goal-id',
+                                               data=json.dumps(update_data),
+                                               content_type='application/json')
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['success'] is True
+        mock_doc_ref.update.assert_called_once()
+
+    def test_update_goal_missing_content(self, authenticated_client, mock_firestore):
+        """Test updating goal without content"""
+        with patch('app.FIRESTORE_AVAILABLE', True):
+            response = authenticated_client.put('/api/goals/test-goal-id',
+                                               data=json.dumps({}),
+                                               content_type='application/json')
+
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert 'error' in data
+
+    def test_delete_goal(self, authenticated_client, mock_firestore):
+        """Test deleting a goal"""
+        mock_doc_ref = Mock()
+        mock_collection = Mock()
+        mock_collection.document.return_value = mock_doc_ref
+        mock_firestore.collection.return_value = mock_collection
+
+        with patch('app.FIRESTORE_AVAILABLE', True):
+            response = authenticated_client.delete('/api/goals/test-goal-id')
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['success'] is True
+        mock_doc_ref.delete.assert_called_once()
+
+    def test_get_goals_with_date_filter(self, authenticated_client, mock_firestore):
+        """Test getting goals with date range filter"""
+        mock_doc1 = Mock()
+        mock_doc1.id = 'goal-1'
+        mock_doc1.to_dict.return_value = {
+            'week_start': '2025-10-27',
+            'week_end': '2025-11-02',
+            'content': 'Week 1 goals'
+        }
+
+        mock_doc2 = Mock()
+        mock_doc2.id = 'goal-2'
+        mock_doc2.to_dict.return_value = {
+            'week_start': '2025-10-20',
+            'week_end': '2025-10-26',
+            'content': 'Week 2 goals'
+        }
+
+        mock_query = Mock()
+        mock_query.stream.return_value = [mock_doc1, mock_doc2]
+        mock_query.order_by.return_value = mock_query
+
+        mock_collection = Mock()
+        mock_collection.order_by.return_value = mock_query
+        mock_firestore.collection.return_value = mock_collection
+
+        with patch('app.FIRESTORE_AVAILABLE', True):
+            response = authenticated_client.get('/api/goals?start_date=2025-10-20&end_date=2025-11-02')
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert isinstance(data, list)
+
+
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])
