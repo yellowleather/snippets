@@ -25,6 +25,9 @@ handlers:
 - url: /static
   static_dir: static
   secure: always
+  expiration: "0s"
+  http_headers:
+    Cache-Control: "no-cache, no-store, must-revalidate"
 
 # All other routes handled by Flask
 - url: /.*

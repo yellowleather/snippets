@@ -4,11 +4,25 @@
 
 set -e  # Exit on error
 
-echo "🚀 Deploying to Google App Engine..."
+echo "Pre-deployment checks..."
+echo ""
+
+# Run tests first
+echo "Running tests..."
+./run_tests.sh
+if [ $? -ne 0 ]; then
+    echo ""
+    echo "Error: Tests failed. Deployment aborted."
+    exit 1
+fi
+
+echo ""
+echo "Tests passed! Proceeding with deployment..."
+echo ""
 
 # Check if .env.production exists
 if [ ! -f .env.production ]; then
-    echo "❌ Error: .env.production not found!"
+    echo "Error: .env.production not found!"
     echo "Create it with your secrets first."
     exit 1
 fi
@@ -18,12 +32,12 @@ source .env.production
 
 # Validate required variables
 if [ -z "$SECRET_KEY" ] || [ -z "$SNIPPET_PASSWORD" ]; then
-    echo "❌ Error: SECRET_KEY or SNIPPET_PASSWORD not set in .env.production"
+    echo "Error: SECRET_KEY or SNIPPET_PASSWORD not set in .env.production"
     exit 1
 fi
 
-echo "✅ Loaded secrets from .env.production"
-echo "📝 Generating app.yaml from template..."
+echo "Loaded secrets from .env.production"
+echo "Generating app.yaml from template..."
 
 # Create app.yaml from template with secrets
 sed -e "s|__SNIPPET_USERNAME__|$SNIPPET_USERNAME|g" \
@@ -31,7 +45,7 @@ sed -e "s|__SNIPPET_USERNAME__|$SNIPPET_USERNAME|g" \
     -e "s|__SECRET_KEY__|$SECRET_KEY|g" \
     app.yaml.template > app.yaml
 
-echo "📦 Deploying to App Engine..."
+echo "Deploying to App Engine..."
 
 # Deploy
 gcloud app deploy --quiet
@@ -40,12 +54,12 @@ gcloud app deploy --quiet
 rm -f app.yaml
 
 echo ""
-echo "✅ Deployment complete!"
+echo "Deployment complete!"
 echo ""
-echo "🌐 Your app is live at:"
+echo "Your app is live at:"
 gcloud app browse --no-launch-browser 2>&1 | grep "https://" || echo "   Run: gcloud app browse"
 echo ""
-echo "🔐 Login credentials:"
+echo "Login credentials:"
 echo "   Username: $SNIPPET_USERNAME"
 echo "   Password: [hidden for security]"
 echo ""

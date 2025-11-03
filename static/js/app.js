@@ -282,7 +282,7 @@ function displayWeeks(weeks, snippetsMap) {
             const contentHtml = enableMarkdown ? marked.parse(snippet.content) : escapeHtml(snippet.content);
             html += contentHtml;
             html += `  </div>`;
-            html += `  <button class="edit-btn" onclick="openEditModal(${snippet.id})">Edit</button>`;
+            html += `  <button class="edit-btn" onclick="openEditModal('${snippet.id}')">Edit</button>`;
         } else {
             // No snippet for this week — per spec show only the Add Snippets button (no "No snippets" text)
             html += `  </div>`;
@@ -336,7 +336,7 @@ function displaySnippets(snippets) {
                 <div class="snippet-content">
                     ${contentHtml}
                 </div>
-                <button class="edit-btn" onclick="openEditModal(${snippet.id})">Edit</button>
+                <button class="edit-btn" onclick="openEditModal('${snippet.id}')">Edit</button>
             </div>
         `;
     });
