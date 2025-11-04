@@ -33,8 +33,12 @@ snippets/
 ├── requirements.txt       # Python dependencies
 ├── deploy.sh              # Deployment script (runs tests first)
 ├── run_tests.sh           # Test runner script
+├── run_local.sh           # Local development server
 ├── app.yaml.template      # App Engine config template
 ├── .env.production        # Production secrets (gitignored)
+├── feature_specs/         # Feature specifications for rebuilding
+│   ├── README.md          # Specifications guide
+│   └── goals.md           # Weekly Goals feature spec
 ├── templates/
 │   ├── index.html         # Main application UI
 │   └── login.html         # Login page
@@ -121,10 +125,26 @@ This will:
 **Test coverage includes:**
 - Authentication (login, logout, sessions)
 - Snippet CRUD operations
+- Goals CRUD operations
 - Date/week utilities
 - Security (password hashing)
 - Error handling
 - Firestore integration
+
+## Feature Specifications
+
+Comprehensive feature specifications are maintained in the [`feature_specs/`](feature_specs/) directory. These documents provide complete rebuilding instructions for major features in case they are accidentally deleted.
+
+Each specification includes:
+- Complete code for backend and frontend
+- Database schema and indexes
+- Configuration and deployment steps
+- Testing requirements
+- UI/UX specifications
+- Step-by-step rebuild checklist
+
+**Available Specifications:**
+- [Weekly Goals](feature_specs/weekly_goals.md) - Two-column layout feature for tracking work done vs planned goals
 
 ## How Snippets Work
 
