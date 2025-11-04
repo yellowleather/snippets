@@ -586,5 +586,179 @@ class TestGoalsCRUD:
         assert isinstance(data, list)
 
 
+class TestReflectionsCRUD:
+    """Test reflections CRUD operations"""
+
+    def test_get_reflections_requires_auth(self, client):
+        """Test that getting reflections requires authentication"""
+        response = client.get('/api/reflections')
+        assert response.status_code == 302  # Redirect to login
+
+    def test_create_reflection(self, authenticated_client, mock_firestore):
+        """Test creating a new reflection"""
+        mock_doc_ref = Mock()
+        mock_doc_ref.id = 'test-reflection-id'
+        mock_collection = Mock()
+        mock_collection.document.return_value = mock_doc_ref
+        mock_firestore.collection.return_value = mock_collection
+
+        reflection_data = {
+            'week_start': '2025-10-27',
+            'week_end': '2025-11-02',
+            'content': '# Weekly Reflection\n\n- Learned about X\n- Improved Y'
+        }
+
+        with patch('app.FIRESTORE_AVAILABLE', True):
+            response = authenticated_client.post('/api/reflections',
+                                                data=json.dumps(reflection_data),
+                                                content_type='application/json')
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['success'] is True
+        assert 'id' in data
+
+    def test_create_reflection_missing_fields(self, authenticated_client, mock_firestore):
+        """Test creating reflection with missing required fields"""
+        incomplete_data = {
+            'week_start': '2025-10-27',
+            # Missing week_end and content
+        }
+
+        with patch('app.FIRESTORE_AVAILABLE', True):
+            response = authenticated_client.post('/api/reflections',
+                                                data=json.dumps(incomplete_data),
+                                                content_type='application/json')
+
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert 'error' in data
+
+    def test_get_reflection_by_id(self, authenticated_client, mock_firestore):
+        """Test retrieving a specific reflection by ID"""
+        mock_doc = Mock()
+        mock_doc.exists = True
+        mock_doc.id = 'test-reflection-id'
+        mock_doc.to_dict.return_value = {
+            'week_start': '2025-10-27',
+            'week_end': '2025-11-02',
+            'content': 'Learned about testing'
+        }
+
+        mock_doc_ref = Mock()
+        mock_doc_ref.get.return_value = mock_doc
+
+        mock_collection = Mock()
+        mock_collection.document.return_value = mock_doc_ref
+        mock_firestore.collection.return_value = mock_collection
+
+        with patch('app.FIRESTORE_AVAILABLE', True):
+            response = authenticated_client.get('/api/reflections/test-reflection-id')
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['week_start'] == '2025-10-27'
+        assert data['content'] == 'Learned about testing'
+
+    def test_get_nonexistent_reflection(self, authenticated_client, mock_firestore):
+        """Test retrieving a reflection that doesn't exist"""
+        mock_doc = Mock()
+        mock_doc.exists = False
+
+        mock_doc_ref = Mock()
+        mock_doc_ref.get.return_value = mock_doc
+
+        mock_collection = Mock()
+        mock_collection.document.return_value = mock_doc_ref
+        mock_firestore.collection.return_value = mock_collection
+
+        with patch('app.FIRESTORE_AVAILABLE', True):
+            response = authenticated_client.get('/api/reflections/nonexistent-id')
+
+        assert response.status_code == 404
+        data = json.loads(response.data)
+        assert 'error' in data
+
+    def test_update_reflection(self, authenticated_client, mock_firestore):
+        """Test updating an existing reflection"""
+        mock_doc_ref = Mock()
+        mock_collection = Mock()
+        mock_collection.document.return_value = mock_doc_ref
+        mock_firestore.collection.return_value = mock_collection
+
+        update_data = {
+            'content': '# Updated Reflection\n\nNew insights'
+        }
+
+        with patch('app.FIRESTORE_AVAILABLE', True):
+            response = authenticated_client.put('/api/reflections/test-reflection-id',
+                                               data=json.dumps(update_data),
+                                               content_type='application/json')
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['success'] is True
+        mock_doc_ref.update.assert_called_once()
+
+    def test_update_reflection_missing_content(self, authenticated_client, mock_firestore):
+        """Test updating reflection without content"""
+        with patch('app.FIRESTORE_AVAILABLE', True):
+            response = authenticated_client.put('/api/reflections/test-reflection-id',
+                                               data=json.dumps({}),
+                                               content_type='application/json')
+
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert 'error' in data
+
+    def test_delete_reflection(self, authenticated_client, mock_firestore):
+        """Test deleting a reflection"""
+        mock_doc_ref = Mock()
+        mock_collection = Mock()
+        mock_collection.document.return_value = mock_doc_ref
+        mock_firestore.collection.return_value = mock_collection
+
+        with patch('app.FIRESTORE_AVAILABLE', True):
+            response = authenticated_client.delete('/api/reflections/test-reflection-id')
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['success'] is True
+        mock_doc_ref.delete.assert_called_once()
+
+    def test_get_reflections_with_date_filter(self, authenticated_client, mock_firestore):
+        """Test getting reflections with date range filter"""
+        mock_doc1 = Mock()
+        mock_doc1.id = 'reflection-1'
+        mock_doc1.to_dict.return_value = {
+            'week_start': '2025-10-27',
+            'week_end': '2025-11-02',
+            'content': 'Week 1 reflections'
+        }
+
+        mock_doc2 = Mock()
+        mock_doc2.id = 'reflection-2'
+        mock_doc2.to_dict.return_value = {
+            'week_start': '2025-10-20',
+            'week_end': '2025-10-26',
+            'content': 'Week 2 reflections'
+        }
+
+        mock_query = Mock()
+        mock_query.stream.return_value = [mock_doc1, mock_doc2]
+        mock_query.order_by.return_value = mock_query
+
+        mock_collection = Mock()
+        mock_collection.order_by.return_value = mock_query
+        mock_firestore.collection.return_value = mock_collection
+
+        with patch('app.FIRESTORE_AVAILABLE', True):
+            response = authenticated_client.get('/api/reflections?start_date=2025-10-20&end_date=2025-11-02')
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert isinstance(data, list)
+
+
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])

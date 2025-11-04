@@ -24,6 +24,7 @@ PASSWORD_HASH = generate_password_hash(os.environ.get('SNIPPET_PASSWORD', 'chang
 
 # Feature Flags
 GOALS_ENABLED = os.environ.get('GOALS_ENABLED', 'true').lower() == 'true'
+REFLECTIONS_ENABLED = os.environ.get('REFLECTIONS_ENABLED', 'true').lower() == 'true'
 
 def login_required(f):
     @wraps(f)
@@ -76,7 +77,8 @@ def index():
 def get_config():
     """Return feature flags and configuration"""
     return jsonify({
-        'goals_enabled': GOALS_ENABLED
+        'goals_enabled': GOALS_ENABLED,
+        'reflections_enabled': REFLECTIONS_ENABLED
     })
 
 @app.route('/api/snippets', methods=['GET'])
@@ -320,6 +322,127 @@ def delete_goal(goal_id):
         return jsonify({'error': 'Firestore not available'}), 500
 
     db.collection('goals').document(goal_id).delete()
+
+    return jsonify({'success': True})
+
+
+# Reflections API endpoints
+@app.route('/api/reflections', methods=['GET'])
+@login_required
+def get_reflections():
+    if not REFLECTIONS_ENABLED:
+        return jsonify({'error': 'Reflections feature is disabled'}), 404
+
+    if not FIRESTORE_AVAILABLE:
+        return jsonify({'error': 'Firestore not available'}), 500
+
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+
+    reflections_ref = db.collection('reflections')
+
+    if start_date and end_date:
+        query = reflections_ref.order_by('week_start', direction=firestore.Query.DESCENDING)
+
+        reflections = []
+        for doc in query.stream():
+            reflection = doc.to_dict()
+            reflection['id'] = doc.id
+            if reflection['week_start'] <= end_date and reflection['week_end'] >= start_date:
+                reflections.append(reflection)
+    else:
+        query = reflections_ref.order_by('week_start', direction=firestore.Query.DESCENDING).limit(10)
+        reflections = []
+        for doc in query.stream():
+            reflection = doc.to_dict()
+            reflection['id'] = doc.id
+            reflections.append(reflection)
+
+    return jsonify(reflections)
+
+
+@app.route('/api/reflections/<reflection_id>', methods=['GET'])
+@login_required
+def get_reflection(reflection_id):
+    if not REFLECTIONS_ENABLED:
+        return jsonify({'error': 'Reflections feature is disabled'}), 404
+
+    if not FIRESTORE_AVAILABLE:
+        return jsonify({'error': 'Firestore not available'}), 500
+
+    doc_ref = db.collection('reflections').document(reflection_id)
+    doc = doc_ref.get()
+
+    if doc.exists:
+        reflection = doc.to_dict()
+        reflection['id'] = doc.id
+        return jsonify(reflection)
+    return jsonify({'error': 'Reflection not found'}), 404
+
+
+@app.route('/api/reflections', methods=['POST'])
+@login_required
+def create_reflection():
+    if not REFLECTIONS_ENABLED:
+        return jsonify({'error': 'Reflections feature is disabled'}), 404
+
+    if not FIRESTORE_AVAILABLE:
+        return jsonify({'error': 'Firestore not available'}), 500
+
+    data = request.get_json()
+    week_start = data.get('week_start')
+    week_end = data.get('week_end')
+    content = data.get('content')
+
+    if not all([week_start, week_end, content]):
+        return jsonify({'error': 'Missing required fields'}), 400
+
+    doc_ref = db.collection('reflections').document()
+    doc_ref.set({
+        'week_start': week_start,
+        'week_end': week_end,
+        'content': content,
+        'created_at': firestore.SERVER_TIMESTAMP,
+        'updated_at': firestore.SERVER_TIMESTAMP
+    })
+
+    return jsonify({'id': doc_ref.id, 'success': True})
+
+
+@app.route('/api/reflections/<reflection_id>', methods=['PUT'])
+@login_required
+def update_reflection(reflection_id):
+    if not REFLECTIONS_ENABLED:
+        return jsonify({'error': 'Reflections feature is disabled'}), 404
+
+    if not FIRESTORE_AVAILABLE:
+        return jsonify({'error': 'Firestore not available'}), 500
+
+    data = request.get_json()
+    content = data.get('content')
+
+    if not content:
+        return jsonify({'error': 'Content is required'}), 400
+
+    doc_ref = db.collection('reflections').document(reflection_id)
+    doc_ref.update({
+        'content': content,
+        'updated_at': firestore.SERVER_TIMESTAMP
+    })
+
+    return jsonify({'success': True})
+
+
+@app.route('/api/reflections/<reflection_id>', methods=['DELETE'])
+@login_required
+def delete_reflection(reflection_id):
+    if not REFLECTIONS_ENABLED:
+        return jsonify({'error': 'Reflections feature is disabled'}), 404
+
+    if not FIRESTORE_AVAILABLE:
+        return jsonify({'error': 'Firestore not available'}), 500
+
+    db.collection('reflections').document(reflection_id).delete()
 
     return jsonify({'success': True})
 

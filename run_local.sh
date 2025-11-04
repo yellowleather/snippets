@@ -63,11 +63,17 @@ if [ -z "$GOALS_ENABLED" ]; then
     GOALS_ENABLED="true"
 fi
 
+# Set default for REFLECTIONS_ENABLED if not in .env.production
+if [ -z "$REFLECTIONS_ENABLED" ]; then
+    REFLECTIONS_ENABLED="true"
+fi
+
 # Export environment variables for Flask
 export SECRET_KEY="$SECRET_KEY"
 export SNIPPET_USERNAME="$SNIPPET_USERNAME"
 export SNIPPET_PASSWORD="$SNIPPET_PASSWORD"
 export GOALS_ENABLED="$GOALS_ENABLED"
+export REFLECTIONS_ENABLED="$REFLECTIONS_ENABLED"
 export FLASK_ENV=development
 export FLASK_DEBUG=1
 

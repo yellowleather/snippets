@@ -1,10 +1,12 @@
 // Global state
 let currentSnippetId = null;
 let currentGoalId = null;
+let currentReflectionId = null;
 let currentWeekStart = null;
 let currentWeekEnd = null;
-let currentModalType = null; // 'snippet' or 'goal'
+let currentModalType = null; // 'snippet', 'goal', or 'reflection'
 let goalsEnabled = true; // Default to true, will be updated from server
+let reflectionsEnabled = true; // Default to true, will be updated from server
 
 // Initialize the app
 document.addEventListener('DOMContentLoaded', async () => {
@@ -18,10 +20,12 @@ async function loadConfig() {
         const response = await fetch('/api/config');
         const config = await response.json();
         goalsEnabled = config.goals_enabled;
+        reflectionsEnabled = config.reflections_enabled;
     } catch (error) {
         console.error('Error loading config:', error);
         // Default to true if config fails to load
         goalsEnabled = true;
+        reflectionsEnabled = true;
     }
 }
 
@@ -208,10 +212,14 @@ async function loadSnippets() {
     const queryEnd = universe[universe.length - 1].week_end;
 
     try {
-        // Load snippets and conditionally load goals
+        // Load snippets, conditionally load goals and reflections
         const promises = [
             fetch(`/api/snippets?start_date=${queryStart}&end_date=${queryEnd}`)
         ];
+
+        if (reflectionsEnabled) {
+            promises.push(fetch(`/api/reflections?start_date=${queryStart}&end_date=${queryEnd}`));
+        }
 
         if (goalsEnabled) {
             promises.push(fetch(`/api/goals?start_date=${queryStart}&end_date=${queryEnd}`));
@@ -219,18 +227,35 @@ async function loadSnippets() {
 
         const responses = await Promise.all(promises);
         const snippets = await responses[0].json();
-        const goals = goalsEnabled && responses[1] ? await responses[1].json() : [];
 
-        // Map snippets and goals by week_start for easy lookup
+        let reflections = [];
+        let goals = [];
+        let responseIndex = 1;
+
+        if (reflectionsEnabled) {
+            reflections = await responses[responseIndex].json();
+            responseIndex++;
+        }
+
+        if (goalsEnabled) {
+            goals = await responses[responseIndex].json();
+        }
+
+        // Map snippets, reflections, and goals by week_start for easy lookup
         const snippetsMap = {};
         snippets.forEach(s => { snippetsMap[s.week_start] = s; });
+
+        const reflectionsMap = {};
+        if (reflectionsEnabled) {
+            reflections.forEach(r => { reflectionsMap[r.week_start] = r; });
+        }
 
         const goalsMap = {};
         if (goalsEnabled) {
             goals.forEach(g => { goalsMap[g.week_start] = g; });
         }
 
-        displayWeeks(universe, snippetsMap, goalsMap);
+        displayWeeks(universe, snippetsMap, goalsMap, reflectionsMap);
     } catch (error) {
         console.error('Error loading data:', error);
     }
@@ -281,8 +306,8 @@ function computeUniverseWeeks(startDateStr, endDateStr) {
     return weeks;
 }
 
-// Render the weeks universe with both snippets and goals
-function displayWeeks(weeks, snippetsMap, goalsMap) {
+// Render the weeks universe with snippets, goals, and reflections
+function displayWeeks(weeks, snippetsMap, goalsMap, reflectionsMap) {
     const container = document.getElementById('snippetsContainer');
 
     if (!weeks || weeks.length === 0) {
@@ -331,10 +356,53 @@ function displayWeeks(weeks, snippetsMap, goalsMap) {
             html += `          </svg>`;
             html += `        </button>`;
             html += `      </div>`;
+            // Show "Record Reflection" button for past weeks even when snippet exists (only if feature enabled)
+            if (reflectionsEnabled) {
+                const reflection = reflectionsMap[week.week_start];
+                if (!week.isFuture && !reflection) {
+                    html += `      <button class="record-reflection-btn" onclick="openNewReflectionModalForWeek('${week.week_start}','${week.week_end}')">Record Reflection</button>`;
+                }
+            }
         } else {
             html += `      </div>`;
-            html += `      <button class="add-snippet-btn" onclick="openNewSnippetModalForWeek('${week.week_start}','${week.week_end}')">Add Snippets</button>`;
+            html += `      <div class="snippet-button-group">`;
+            html += `        <button class="add-snippet-btn" onclick="openNewSnippetModalForWeek('${week.week_start}','${week.week_end}')">Add Snippets</button>`;
+            // Show "Record Reflection" button only for past weeks (only if feature enabled)
+            if (reflectionsEnabled) {
+                const reflection = reflectionsMap[week.week_start];
+                if (!week.isFuture && !reflection) {
+                    html += `        <button class="record-reflection-btn" onclick="openNewReflectionModalForWeek('${week.week_start}','${week.week_end}')">Record Reflection</button>`;
+                }
+            }
+            html += `      </div>`;
         }
+
+        // Show reflection if it exists for past weeks (only if feature enabled)
+        if (reflectionsEnabled) {
+            const reflection = reflectionsMap[week.week_start];
+            if (reflection && !week.isFuture) {
+            html += `      <div class="reflection-section">`;
+            html += `        <h4 class="reflection-title">Reflection</h4>`;
+            html += `        <div class="snippet-content">`;
+            const enableMarkdown = true;
+            const reflectionHtml = enableMarkdown ? marked.parse(reflection.content) : escapeHtml(reflection.content);
+            html += reflectionHtml;
+            html += `        </div>`;
+            html += `        <div class="snippet-actions">`;
+            html += `          <button class="edit-btn" onclick="openEditReflectionModal('${reflection.id}')">Edit</button>`;
+            html += `          <button class="delete-btn" onclick="deleteReflection('${reflection.id}')" title="Delete reflection">`;
+            html += `            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">`;
+            html += `              <polyline points="3 6 5 6 21 6"></polyline>`;
+            html += `              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>`;
+            html += `              <line x1="10" y1="11" x2="10" y2="17"></line>`;
+            html += `              <line x1="14" y1="11" x2="14" y2="17"></line>`;
+            html += `            </svg>`;
+            html += `          </button>`;
+            html += `        </div>`;
+            html += `      </div>`;
+            }
+        }
+
         html += `    </div>`;
 
         // Right column: Goals (What was planned) - only if feature is enabled
@@ -554,23 +622,27 @@ function closeModal() {
     document.getElementById('editModal').classList.remove('show');
     currentSnippetId = null;
     currentGoalId = null;
+    currentReflectionId = null;
     currentModalType = null;
 }
 
 async function saveSnippet() {
     const content = document.getElementById('snippetContent').value.trim();
 
-    // Determine if we're working with snippet or goal
+    // Determine if we're working with snippet, goal, or reflection
     const isGoal = currentModalType === 'goal';
-    const currentId = isGoal ? currentGoalId : currentSnippetId;
-    const apiPath = isGoal ? '/api/goals' : '/api/snippets';
-    const itemType = isGoal ? 'goal' : 'snippet';
+    const isReflection = currentModalType === 'reflection';
+    const currentId = isGoal ? currentGoalId : (isReflection ? currentReflectionId : currentSnippetId);
+    const apiPath = isGoal ? '/api/goals' : (isReflection ? '/api/reflections' : '/api/snippets');
+    const itemType = isGoal ? 'goal' : (isReflection ? 'reflection' : 'snippet');
 
     // If content is empty and we're editing an existing item, delete it instead
     if (!content && currentId) {
         if (confirm(`Empty content will delete this ${itemType}. Continue?`)) {
             if (isGoal) {
                 await deleteGoal(currentId, true);
+            } else if (isReflection) {
+                await deleteReflection(currentId, true);
             } else {
                 await deleteSnippet(currentId, true);
             }
@@ -663,6 +735,82 @@ async function deleteGoal(goalId, skipConfirm = false) {
     } catch (error) {
         console.error('Error deleting goal:', error);
         alert('Failed to delete goal');
+    }
+}
+
+// Open the new reflection modal for a specific week (week boundaries passed)
+function openNewReflectionModalForWeek(weekStart, weekEnd) {
+    currentSnippetId = null;
+    currentGoalId = null;
+    currentReflectionId = null;
+    currentModalType = 'reflection';
+    currentWeekStart = weekStart;
+    currentWeekEnd = weekEnd;
+
+    const weekNum = getWeekNumber(weekStart);
+    const startFormatted = formatDateDisplay(weekStart);
+    const endFormatted = formatDateDisplay(weekEnd);
+
+    document.getElementById('modalTitle').textContent = `Record Reflection - Week ${weekNum} (${startFormatted}–${endFormatted.split(',')[0]}, ${endFormatted.split(',')[1]})`;
+
+    const defaultReflectionTemplate = `- **What worked well?**
+  - <Insert>
+- **What was not a great use of time?**
+  - <Insert>
+- **What do I wish to have spent more time on?**
+  - <Insert>
+`;
+
+    document.getElementById('snippetContent').value = defaultReflectionTemplate;
+
+    showModal();
+}
+
+async function openEditReflectionModal(reflectionId) {
+    try {
+        const response = await fetch(`/api/reflections/${reflectionId}`);
+        const reflection = await response.json();
+
+        currentSnippetId = null;
+        currentGoalId = null;
+        currentReflectionId = reflectionId;
+        currentModalType = 'reflection';
+        currentWeekStart = reflection.week_start;
+        currentWeekEnd = reflection.week_end;
+
+        const weekNum = getWeekNumber(reflection.week_start);
+        const startFormatted = formatDateDisplay(reflection.week_start);
+        const endFormatted = formatDateDisplay(reflection.week_end);
+
+        document.getElementById('modalTitle').textContent = `Edit Reflection - Week ${weekNum} (${startFormatted}–${endFormatted.split(',')[0]}, ${endFormatted.split(',')[1]})`;
+        document.getElementById('snippetContent').value = reflection.content;
+
+        showModal();
+    } catch (error) {
+        console.error('Error loading reflection:', error);
+        alert('Failed to load reflection');
+    }
+}
+
+async function deleteReflection(reflectionId, skipConfirm = false) {
+    if (!skipConfirm && !confirm('Are you sure you want to delete this reflection?')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/reflections/${reflectionId}`, {
+            method: 'DELETE'
+        });
+
+        if (response.ok) {
+            closeModal();
+            await loadSnippets();
+        } else {
+            alert('Failed to delete reflection');
+        }
+    } catch (error) {
+        console.error('Error deleting reflection:', error);
+        alert('Failed to delete reflection');
     }
 }
 

@@ -29,6 +29,7 @@ Each feature specification should include:
 ## Available Specifications
 
 - **[weekly_goals.md](weekly_goals.md)** - Weekly Goals feature with two-column layout for tracking work done vs planned goals
+- **[weekly_reflections.md](weekly_reflections.md)** - Weekly Reflections feature for recording retrospective thoughts about past weeks
 
 ## Creating New Specifications
 

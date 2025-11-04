@@ -41,6 +41,11 @@ if [ -z "$GOALS_ENABLED" ]; then
     GOALS_ENABLED="true"
 fi
 
+# Set default for REFLECTIONS_ENABLED if not provided
+if [ -z "$REFLECTIONS_ENABLED" ]; then
+    REFLECTIONS_ENABLED="true"
+fi
+
 echo "Loaded secrets from .env.production"
 echo "Generating app.yaml from template..."
 
@@ -49,6 +54,7 @@ sed -e "s|__SNIPPET_USERNAME__|$SNIPPET_USERNAME|g" \
     -e "s|__SNIPPET_PASSWORD__|$SNIPPET_PASSWORD|g" \
     -e "s|__SECRET_KEY__|$SECRET_KEY|g" \
     -e "s|__GOALS_ENABLED__|$GOALS_ENABLED|g" \
+    -e "s|__REFLECTIONS_ENABLED__|$REFLECTIONS_ENABLED|g" \
     app.yaml.template > app.yaml
 
 echo "Deploying to App Engine..."
