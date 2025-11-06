@@ -30,6 +30,7 @@ Each feature specification should include:
 
 - **[weekly_goals.md](weekly_goals.md)** - Weekly Goals feature with two-column layout for tracking work done vs planned goals
 - **[weekly_reflections.md](weekly_reflections.md)** - Weekly Reflections feature for recording retrospective thoughts about past weeks
+- **[daily_movement_scores.md](daily_movement_scores.md)** - Daily Movement Scores feature for tracking daily wins/losses with visual 7-square meter
 
 ## Creating New Specifications
 

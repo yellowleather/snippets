@@ -760,5 +760,142 @@ class TestReflectionsCRUD:
         assert isinstance(data, list)
 
 
+class TestDailyScores:
+    """Test daily movement scores"""
+
+    def test_get_daily_scores_requires_auth(self, client):
+        """Test that getting daily scores requires authentication"""
+        response = client.get('/api/daily_scores')
+        assert response.status_code == 302  # Redirect to login
+
+    def test_toggle_daily_score_create(self, authenticated_client, mock_firestore):
+        """Test toggling a daily score from 0 to 1 (create)"""
+        # Mock Firestore query that returns no existing score
+        mock_query = Mock()
+        mock_query.stream.return_value = []
+        mock_query.limit.return_value = mock_query
+
+        mock_collection = Mock()
+        mock_collection.where.return_value = mock_query
+
+        mock_doc_ref = Mock()
+        mock_doc_ref.id = 'test-score-id'
+        mock_collection.document.return_value = mock_doc_ref
+
+        mock_firestore.collection.return_value = mock_collection
+
+        score_data = {
+            'date': '2025-11-01'
+        }
+
+        with patch('app.FIRESTORE_AVAILABLE', True):
+            response = authenticated_client.post('/api/daily_scores/toggle',
+                                                data=json.dumps(score_data),
+                                                content_type='application/json')
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['success'] is True
+        assert data['score'] == 1
+        assert 'id' in data
+        mock_doc_ref.set.assert_called_once()
+
+    def test_toggle_daily_score_delete(self, authenticated_client, mock_firestore):
+        """Test toggling a daily score from 1 to 0 (delete)"""
+        # Mock Firestore query that returns an existing score
+        mock_doc = Mock()
+        mock_doc.reference = Mock()
+
+        mock_query = Mock()
+        mock_query.stream.return_value = [mock_doc]
+        mock_query.limit.return_value = mock_query
+
+        mock_collection = Mock()
+        mock_collection.where.return_value = mock_query
+        mock_firestore.collection.return_value = mock_collection
+
+        score_data = {
+            'date': '2025-11-01'
+        }
+
+        with patch('app.FIRESTORE_AVAILABLE', True):
+            response = authenticated_client.post('/api/daily_scores/toggle',
+                                                data=json.dumps(score_data),
+                                                content_type='application/json')
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['success'] is True
+        assert data['score'] == 0
+        mock_doc.reference.delete.assert_called_once()
+
+    def test_toggle_daily_score_missing_date(self, authenticated_client, mock_firestore):
+        """Test toggling without providing date"""
+        with patch('app.FIRESTORE_AVAILABLE', True):
+            response = authenticated_client.post('/api/daily_scores/toggle',
+                                                data=json.dumps({}),
+                                                content_type='application/json')
+
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert 'error' in data
+
+    def test_get_daily_scores_with_date_filter(self, authenticated_client, mock_firestore):
+        """Test getting daily scores with date range filter"""
+        mock_doc1 = Mock()
+        mock_doc1.id = 'score-1'
+        mock_doc1.to_dict.return_value = {
+            'date': '2025-11-01',
+            'score': 1
+        }
+
+        mock_doc2 = Mock()
+        mock_doc2.id = 'score-2'
+        mock_doc2.to_dict.return_value = {
+            'date': '2025-11-02',
+            'score': 1
+        }
+
+        mock_query = Mock()
+        mock_query.stream.return_value = [mock_doc1, mock_doc2]
+        mock_query.order_by.return_value = mock_query
+
+        mock_collection = Mock()
+        mock_collection.order_by.return_value = mock_query
+        mock_firestore.collection.return_value = mock_collection
+
+        with patch('app.FIRESTORE_AVAILABLE', True):
+            response = authenticated_client.get('/api/daily_scores?start_date=2025-11-01&end_date=2025-11-03')
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert isinstance(data, list)
+
+    def test_get_daily_scores_without_filter(self, authenticated_client, mock_firestore):
+        """Test getting recent daily scores without date filter"""
+        mock_doc = Mock()
+        mock_doc.id = 'score-1'
+        mock_doc.to_dict.return_value = {
+            'date': '2025-11-01',
+            'score': 1
+        }
+
+        mock_query = Mock()
+        mock_query.stream.return_value = [mock_doc]
+        mock_query.limit.return_value = mock_query
+        mock_query.order_by.return_value = mock_query
+
+        mock_collection = Mock()
+        mock_collection.order_by.return_value = mock_query
+        mock_firestore.collection.return_value = mock_collection
+
+        with patch('app.FIRESTORE_AVAILABLE', True):
+            response = authenticated_client.get('/api/daily_scores')
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert isinstance(data, list)
+
+
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])

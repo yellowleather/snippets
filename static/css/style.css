@@ -164,6 +164,50 @@ nav {
     margin-bottom: 20px;
 }
 
+/* Daily Movement Score Meter */
+.score-meter {
+    display: flex;
+    gap: 6px;
+    padding: 4px 0;
+    margin-left: auto;
+    align-items: center;
+}
+
+.score-label {
+    font-size: 13px;
+    color: #5f6368;
+    font-weight: 500;
+    margin-right: 4px;
+}
+
+.score-square {
+    width: 28px;
+    height: 28px;
+    border: 2px solid #dadce0;
+    border-radius: 4px;
+    background: white;
+    transition: all 0.2s ease;
+}
+
+.score-square.clickable {
+    cursor: pointer;
+}
+
+.score-square.clickable:hover {
+    border-color: #5f6368;
+    transform: scale(1.05);
+}
+
+.score-square.win {
+    background: #34a853;
+    border-color: #34a853;
+}
+
+.score-square.win.clickable:hover {
+    background: #2d9148;
+    border-color: #2d9148;
+}
+
 .week-columns {
     display: grid;
     grid-template-columns: 1fr 1fr;

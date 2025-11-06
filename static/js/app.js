@@ -7,6 +7,7 @@ let currentWeekEnd = null;
 let currentModalType = null; // 'snippet', 'goal', or 'reflection'
 let goalsEnabled = true; // Default to true, will be updated from server
 let reflectionsEnabled = true; // Default to true, will be updated from server
+let dailyScoresEnabled = true; // Default to true, will be updated from server
 
 // Initialize the app
 document.addEventListener('DOMContentLoaded', async () => {
@@ -21,11 +22,13 @@ async function loadConfig() {
         const config = await response.json();
         goalsEnabled = config.goals_enabled;
         reflectionsEnabled = config.reflections_enabled;
+        dailyScoresEnabled = config.daily_scores_enabled;
     } catch (error) {
         console.error('Error loading config:', error);
         // Default to true if config fails to load
         goalsEnabled = true;
         reflectionsEnabled = true;
+        dailyScoresEnabled = true;
     }
 }
 
@@ -212,10 +215,14 @@ async function loadSnippets() {
     const queryEnd = universe[universe.length - 1].week_end;
 
     try {
-        // Load snippets, conditionally load goals and reflections
+        // Load snippets, conditionally load daily scores, goals and reflections
         const promises = [
             fetch(`/api/snippets?start_date=${queryStart}&end_date=${queryEnd}`)
         ];
+
+        if (dailyScoresEnabled) {
+            promises.push(fetch(`/api/daily_scores?start_date=${queryStart}&end_date=${queryEnd}`));
+        }
 
         if (reflectionsEnabled) {
             promises.push(fetch(`/api/reflections?start_date=${queryStart}&end_date=${queryEnd}`));
@@ -228,9 +235,15 @@ async function loadSnippets() {
         const responses = await Promise.all(promises);
         const snippets = await responses[0].json();
 
+        let dailyScores = [];
         let reflections = [];
         let goals = [];
         let responseIndex = 1;
+
+        if (dailyScoresEnabled) {
+            dailyScores = await responses[responseIndex].json();
+            responseIndex++;
+        }
 
         if (reflectionsEnabled) {
             reflections = await responses[responseIndex].json();
@@ -255,7 +268,11 @@ async function loadSnippets() {
             goals.forEach(g => { goalsMap[g.week_start] = g; });
         }
 
-        displayWeeks(universe, snippetsMap, goalsMap, reflectionsMap);
+        // Map daily scores by date for easy lookup
+        const scoresMap = {};
+        dailyScores.forEach(s => { scoresMap[s.date] = s.score; });
+
+        displayWeeks(universe, snippetsMap, goalsMap, reflectionsMap, scoresMap);
     } catch (error) {
         console.error('Error loading data:', error);
     }
@@ -306,8 +323,8 @@ function computeUniverseWeeks(startDateStr, endDateStr) {
     return weeks;
 }
 
-// Render the weeks universe with snippets, goals, and reflections
-function displayWeeks(weeks, snippetsMap, goalsMap, reflectionsMap) {
+// Render the weeks universe with snippets, goals, reflections, and daily scores
+function displayWeeks(weeks, snippetsMap, goalsMap, reflectionsMap, scoresMap) {
     const container = document.getElementById('snippetsContainer');
 
     if (!weeks || weeks.length === 0) {
@@ -328,6 +345,9 @@ function displayWeeks(weeks, snippetsMap, goalsMap, reflectionsMap) {
         html += `  <div class="week-header">`;
         html += `    <span class="week-badge">Week ${weekNum}</span>`;
         html += `    <h2 class="week-title">${startFormatted} – ${endFormatted}</h2>`;
+        if (dailyScoresEnabled) {
+            html += renderScoreMeter(week, scoresMap);
+        }
         html += `  </div>`;
 
         html += `  <div class="week-columns${goalsEnabled ? '' : ' single-column'}">`;
@@ -440,6 +460,86 @@ function displayWeeks(weeks, snippetsMap, goalsMap, reflectionsMap) {
     }
 
     container.innerHTML = html;
+}
+
+// Render the daily movement score meter for a week
+function renderScoreMeter(week, scoresMap) {
+    let html = '<div class="score-meter">';
+    html += '<span class="score-label">Daily Score</span>';
+
+    // Get today's date for comparison (as ISO string YYYY-MM-DD)
+    const today = new Date();
+    const todayStr = formatDate(today);
+
+    // Day names for tooltips
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+    // Generate 7 squares for Mon-Sun
+    const weekStartDate = new Date(week.weekStartObj);
+
+    for (let i = 0; i < 7; i++) {
+        const currentDate = new Date(weekStartDate);
+        currentDate.setDate(currentDate.getDate() + i);
+        const dateStr = formatDate(currentDate);
+        const dayName = dayNames[currentDate.getDay()];
+
+        // Check if this date has a score (1 = win/green, 0/undefined = default/no color)
+        const hasScore = scoresMap[dateStr] === 1;
+
+        // Determine if this date is in the past (can be toggled)
+        // Past weeks: all 7 days will be < today, so all clickable
+        // Current week: only days before today are clickable
+        // Today and future: NOT clickable
+        const isPast = dateStr < todayStr;
+        const isClickable = isPast ? 'clickable' : '';
+        const winClass = hasScore ? 'win' : '';
+
+        // Build the square HTML
+        if (isPast) {
+            html += `<div class="score-square ${winClass} ${isClickable}" onclick="toggleDailyScore('${dateStr}', event)" title="${dayName}"></div>`;
+        } else {
+            html += `<div class="score-square ${winClass}" title="${dayName}"></div>`;
+        }
+    }
+
+    html += '</div>';
+    return html;
+}
+
+// Toggle a daily score (0 <-> 1)
+async function toggleDailyScore(date, event) {
+    // Immediate UI update - toggle the square
+    const clickedSquare = event ? event.currentTarget : null;
+    if (clickedSquare) {
+        clickedSquare.classList.toggle('win');
+    }
+
+    try {
+        // Save to server in background
+        const response = await fetch('/api/daily_scores/toggle', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ date })
+        });
+
+        if (!response.ok) {
+            // Revert the UI update on failure
+            if (clickedSquare) {
+                clickedSquare.classList.toggle('win');
+            }
+            alert('Failed to update score');
+        }
+        // No reload needed - the UI is already updated!
+    } catch (error) {
+        console.error('Error toggling score:', error);
+        // Revert the UI update on error
+        if (clickedSquare) {
+            clickedSquare.classList.toggle('win');
+        }
+        alert('Failed to update score');
+    }
 }
 
 function displaySnippets(snippets) {

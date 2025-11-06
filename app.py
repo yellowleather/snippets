@@ -25,6 +25,7 @@ PASSWORD_HASH = generate_password_hash(os.environ.get('SNIPPET_PASSWORD', 'chang
 # Feature Flags
 GOALS_ENABLED = os.environ.get('GOALS_ENABLED', 'true').lower() == 'true'
 REFLECTIONS_ENABLED = os.environ.get('REFLECTIONS_ENABLED', 'true').lower() == 'true'
+DAILY_SCORES_ENABLED = os.environ.get('DAILY_SCORES_ENABLED', 'true').lower() == 'true'
 
 def login_required(f):
     @wraps(f)
@@ -78,7 +79,8 @@ def get_config():
     """Return feature flags and configuration"""
     return jsonify({
         'goals_enabled': GOALS_ENABLED,
-        'reflections_enabled': REFLECTIONS_ENABLED
+        'reflections_enabled': REFLECTIONS_ENABLED,
+        'daily_scores_enabled': DAILY_SCORES_ENABLED
     })
 
 @app.route('/api/snippets', methods=['GET'])
@@ -445,6 +447,80 @@ def delete_reflection(reflection_id):
     db.collection('reflections').document(reflection_id).delete()
 
     return jsonify({'success': True})
+
+
+# Daily Movement Scores API endpoints
+@app.route('/api/daily_scores', methods=['GET'])
+@login_required
+def get_daily_scores():
+    if not DAILY_SCORES_ENABLED:
+        return jsonify({'error': 'Daily scores feature is disabled'}), 404
+
+    if not FIRESTORE_AVAILABLE:
+        return jsonify({'error': 'Firestore not available'}), 500
+
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+
+    scores_ref = db.collection('daily_scores')
+
+    if start_date and end_date:
+        # Query all scores and filter by date range
+        query = scores_ref.order_by('date')
+
+        scores = []
+        for doc in query.stream():
+            score = doc.to_dict()
+            score['id'] = doc.id
+            if score['date'] >= start_date and score['date'] <= end_date:
+                scores.append(score)
+    else:
+        # Get recent scores
+        query = scores_ref.order_by('date', direction=firestore.Query.DESCENDING).limit(30)
+        scores = []
+        for doc in query.stream():
+            score = doc.to_dict()
+            score['id'] = doc.id
+            scores.append(score)
+
+    return jsonify(scores)
+
+
+@app.route('/api/daily_scores/toggle', methods=['POST'])
+@login_required
+def toggle_daily_score():
+    if not DAILY_SCORES_ENABLED:
+        return jsonify({'error': 'Daily scores feature is disabled'}), 404
+
+    if not FIRESTORE_AVAILABLE:
+        return jsonify({'error': 'Firestore not available'}), 500
+
+    data = request.get_json()
+    date = data.get('date')
+
+    if not date:
+        return jsonify({'error': 'Date is required'}), 400
+
+    # Check if score already exists for this date
+    scores_ref = db.collection('daily_scores')
+    query = scores_ref.where('date', '==', date).limit(1)
+
+    existing_docs = list(query.stream())
+
+    if existing_docs:
+        # Score exists (is 1), delete it to set to 0
+        existing_docs[0].reference.delete()
+        return jsonify({'success': True, 'score': 0})
+    else:
+        # Score doesn't exist (is 0), create it to set to 1
+        doc_ref = scores_ref.document()
+        doc_ref.set({
+            'date': date,
+            'score': 1,
+            'created_at': firestore.SERVER_TIMESTAMP,
+            'updated_at': firestore.SERVER_TIMESTAMP
+        })
+        return jsonify({'success': True, 'score': 1, 'id': doc_ref.id})
 
 
 if __name__ == '__main__':

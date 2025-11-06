@@ -68,12 +68,18 @@ if [ -z "$REFLECTIONS_ENABLED" ]; then
     REFLECTIONS_ENABLED="true"
 fi
 
+# Set default for DAILY_SCORES_ENABLED if not in .env.production
+if [ -z "$DAILY_SCORES_ENABLED" ]; then
+    DAILY_SCORES_ENABLED="true"
+fi
+
 # Export environment variables for Flask
 export SECRET_KEY="$SECRET_KEY"
 export SNIPPET_USERNAME="$SNIPPET_USERNAME"
 export SNIPPET_PASSWORD="$SNIPPET_PASSWORD"
 export GOALS_ENABLED="$GOALS_ENABLED"
 export REFLECTIONS_ENABLED="$REFLECTIONS_ENABLED"
+export DAILY_SCORES_ENABLED="$DAILY_SCORES_ENABLED"
 export FLASK_ENV=development
 export FLASK_DEBUG=1
 
