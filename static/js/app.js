@@ -397,32 +397,6 @@ function displayWeeks(weeks, snippetsMap, goalsMap, reflectionsMap, scoresMap) {
             html += `      </div>`;
         }
 
-        // Show reflection if it exists for past weeks (only if feature enabled)
-        if (reflectionsEnabled) {
-            const reflection = reflectionsMap[week.week_start];
-            if (reflection && !week.isFuture) {
-            html += `      <div class="reflection-section">`;
-            html += `        <h4 class="reflection-title">Reflection</h4>`;
-            html += `        <div class="snippet-content">`;
-            const enableMarkdown = true;
-            const reflectionHtml = enableMarkdown ? marked.parse(reflection.content) : escapeHtml(reflection.content);
-            html += reflectionHtml;
-            html += `        </div>`;
-            html += `        <div class="snippet-actions">`;
-            html += `          <button class="edit-btn" onclick="openEditReflectionModal('${reflection.id}')">Edit</button>`;
-            html += `          <button class="delete-btn" onclick="deleteReflection('${reflection.id}')" title="Delete reflection">`;
-            html += `            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">`;
-            html += `              <polyline points="3 6 5 6 21 6"></polyline>`;
-            html += `              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>`;
-            html += `              <line x1="10" y1="11" x2="10" y2="17"></line>`;
-            html += `              <line x1="14" y1="11" x2="14" y2="17"></line>`;
-            html += `            </svg>`;
-            html += `          </button>`;
-            html += `        </div>`;
-            html += `      </div>`;
-            }
-        }
-
         html += `    </div>`;
 
         // Right column: Goals (What was planned) - only if feature is enabled
@@ -456,6 +430,34 @@ function displayWeeks(weeks, snippetsMap, goalsMap, reflectionsMap, scoresMap) {
         }
 
         html += `  </div>`;
+
+        // Show reflection if it exists for past weeks (only if feature enabled)
+        // Reflections span full width below the two columns
+        if (reflectionsEnabled) {
+            const reflection = reflectionsMap[week.week_start];
+            if (reflection && !week.isFuture) {
+                html += `  <div class="reflection-section">`;
+                html += `    <h4 class="reflection-title">Reflection</h4>`;
+                html += `    <div class="snippet-content">`;
+                const enableMarkdown = true;
+                const reflectionHtml = enableMarkdown ? marked.parse(reflection.content) : escapeHtml(reflection.content);
+                html += reflectionHtml;
+                html += `    </div>`;
+                html += `    <div class="snippet-actions">`;
+                html += `      <button class="edit-btn" onclick="openEditReflectionModal('${reflection.id}')">Edit</button>`;
+                html += `      <button class="delete-btn" onclick="deleteReflection('${reflection.id}')" title="Delete reflection">`;
+                html += `        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">`;
+                html += `          <polyline points="3 6 5 6 21 6"></polyline>`;
+                html += `          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>`;
+                html += `          <line x1="10" y1="11" x2="10" y2="17"></line>`;
+                html += `          <line x1="14" y1="11" x2="14" y2="17"></line>`;
+                html += `        </svg>`;
+                html += `      </button>`;
+                html += `    </div>`;
+                html += `  </div>`;
+            }
+        }
+
         html += `</div>`;
     }
 
