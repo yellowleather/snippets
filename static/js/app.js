@@ -153,16 +153,25 @@ async function initializeDefaultView() {
 }
 
 async function goToCurrentWeek() {
-    // Set date range to current week only:
-    // Start = Monday of current week
+    // Set date range to default view:
+    // Start = Monday of (current week - 4 weeks)
     // End   = Sunday of current week
     const today = new Date();
 
     // Get current week's Monday and Sunday
     const currentWeek = getWeekDates(today);
 
-    document.getElementById('startDate').value = currentWeek.monday;
-    document.getElementById('endDate').value = currentWeek.sunday;
+    // Compute Monday of current week minus 4 weeks
+    const startMondayObj = new Date(currentWeek.mondayObj);
+    startMondayObj.setDate(startMondayObj.getDate() - (4 * 7));
+
+    // start = Monday of (current week - 4 weeks)
+    const startStr = formatDate(startMondayObj);
+    // end = Sunday of current week
+    const endStr = currentWeek.sunday;
+
+    document.getElementById('startDate').value = startStr;
+    document.getElementById('endDate').value = endStr;
 
     await loadSnippets();
 }
