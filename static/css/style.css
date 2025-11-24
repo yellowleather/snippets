@@ -524,6 +524,26 @@ nav {
     border-color: #1a73e8;
 }
 
+.import-link-container {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+}
+
+.import-link {
+    color: #1a73e8;
+    font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
+    transition: opacity 0.2s;
+    white-space: nowrap;
+}
+
+.import-link:hover {
+    opacity: 0.8;
+    text-decoration: underline;
+}
+
 .markdown-toggle {
     margin-top: 15px;
 }

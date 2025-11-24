@@ -65,6 +65,9 @@
                     <button onclick="insertMarkdown('~~', '~~')" title="Strikethrough">S</button>
                     <button onclick="insertMarkdown('- ')" title="Bullet list">•</button>
                     <button onclick="insertMarkdown('1. ')" title="Numbered list">1.</button>
+                    <div id="importFromLastWeek" class="import-link-container" style="display: none;">
+                        <a href="javascript:void(0)" onclick="importFromLastWeek()" class="import-link">Import from last week →</a>
+                    </div>
                 </div>
                 <textarea id="snippetContent" class="snippet-editor" placeholder="Enter your snippet..."></textarea>
                 <div class="markdown-toggle">

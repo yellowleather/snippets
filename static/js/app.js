@@ -654,6 +654,9 @@ function openNewSnippetModalForWeek(weekStart, weekEnd) {
     document.getElementById('modalTitle').textContent = `New Work Done - Week ${weekNum} (${startFormatted}–${endFormatted.split(',')[0]}, ${endFormatted.split(',')[1]})`;
     document.getElementById('snippetContent').value = '';
 
+    // Hide import link for snippets
+    document.getElementById('importFromLastWeek').style.display = 'none';
+
     showModal();
 }
 
@@ -671,6 +674,9 @@ function openNewGoalModalForWeek(weekStart, weekEnd) {
 
     document.getElementById('modalTitle').textContent = `New Weekly Goals - Week ${weekNum} (${startFormatted}–${endFormatted.split(',')[0]}, ${endFormatted.split(',')[1]})`;
     document.getElementById('snippetContent').value = '';
+
+    // Show import link for new goals
+    document.getElementById('importFromLastWeek').style.display = 'block';
 
     showModal();
 }
@@ -718,6 +724,9 @@ async function openEditGoalModal(goalId) {
         document.getElementById('modalTitle').textContent = `Edit Weekly Goals - Week ${weekNum} (${startFormatted}–${endFormatted.split(',')[0]}, ${endFormatted.split(',')[1]})`;
         document.getElementById('snippetContent').value = goal.content;
 
+        // Hide import link when editing
+        document.getElementById('importFromLastWeek').style.display = 'none';
+
         showModal();
     } catch (error) {
         console.error('Error loading goal:', error);
@@ -731,6 +740,7 @@ function showModal() {
 
 function closeModal() {
     document.getElementById('editModal').classList.remove('show');
+    document.getElementById('importFromLastWeek').style.display = 'none';
     currentSnippetId = null;
     currentGoalId = null;
     currentReflectionId = null;
@@ -874,6 +884,9 @@ function openNewReflectionModalForWeek(weekStart, weekEnd) {
 
     document.getElementById('snippetContent').value = defaultReflectionTemplate;
 
+    // Hide import link for reflections
+    document.getElementById('importFromLastWeek').style.display = 'none';
+
     showModal();
 }
 
@@ -925,16 +938,53 @@ async function deleteReflection(reflectionId, skipConfirm = false) {
     }
 }
 
+async function importFromLastWeek() {
+    if (!currentWeekStart) {
+        alert('Cannot determine current week');
+        return;
+    }
+
+    try {
+        // Calculate last week's start date (7 days before current week)
+        const currentWeekParts = currentWeekStart.split('-').map(Number);
+        const currentWeekDate = new Date(currentWeekParts[0], currentWeekParts[1] - 1, currentWeekParts[2]);
+        currentWeekDate.setDate(currentWeekDate.getDate() - 7);
+
+        const lastWeekStart = formatDate(currentWeekDate);
+        const lastWeekEnd = getWeekDates(currentWeekDate).sunday;
+
+        // Fetch goals for last week
+        const response = await fetch(`/api/goals?start_date=${lastWeekStart}&end_date=${lastWeekEnd}`);
+        if (!response.ok) {
+            throw new Error('Failed to fetch last week goals');
+        }
+
+        const goals = await response.json();
+        const lastWeekGoal = goals.find(g => g.week_start === lastWeekStart);
+
+        if (lastWeekGoal && lastWeekGoal.content) {
+            document.getElementById('snippetContent').value = lastWeekGoal.content;
+            // Hide the import link after successful import
+            document.getElementById('importFromLastWeek').style.display = 'none';
+        } else {
+            alert('No goals found for last week');
+        }
+    } catch (error) {
+        console.error('Error importing from last week:', error);
+        alert('Failed to import goals from last week');
+    }
+}
+
 function insertMarkdown(before, after = '') {
     const textarea = document.getElementById('snippetContent');
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
     const text = textarea.value;
     const selectedText = text.substring(start, end);
-    
+
     const newText = text.substring(0, start) + before + selectedText + after + text.substring(end);
     textarea.value = newText;
-    
+
     // Set cursor position
     const newPos = start + before.length + selectedText.length + after.length;
     textarea.focus();
