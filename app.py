@@ -91,12 +91,13 @@ def get_snippets():
 
     start_date = request.args.get('start_date')
     end_date = request.args.get('end_date')
+    endeavor = request.args.get('endeavor', 'pet project')
 
     snippets_ref = db.collection('snippets')
 
     if start_date and end_date:
         # Query all snippets ordered by week_start
-        # Filter client-side for overlapping weeks
+        # Filter client-side for overlapping weeks and endeavor
         # week overlaps with range if week_start <= end_date AND week_end >= start_date
         query = snippets_ref.order_by('week_start', direction=firestore.Query.DESCENDING)
 
@@ -105,7 +106,9 @@ def get_snippets():
             snippet = doc.to_dict()
             snippet['id'] = doc.id
             # Filter: week overlaps if week_start <= end_date AND week_end >= start_date
-            if snippet['week_start'] <= end_date and snippet['week_end'] >= start_date:
+            # Also filter by endeavor, defaulting to 'pet project' for old records
+            snippet_endeavor = snippet.get('endeavor', 'pet project')
+            if snippet['week_start'] <= end_date and snippet['week_end'] >= start_date and snippet_endeavor == endeavor:
                 snippets.append(snippet)
     else:
         query = snippets_ref.order_by('week_start', direction=firestore.Query.DESCENDING).limit(10)
@@ -113,7 +116,10 @@ def get_snippets():
         for doc in query.stream():
             snippet = doc.to_dict()
             snippet['id'] = doc.id
-            snippets.append(snippet)
+            # Filter by endeavor, defaulting to 'pet project' for old records
+            snippet_endeavor = snippet.get('endeavor', 'pet project')
+            if snippet_endeavor == endeavor:
+                snippets.append(snippet)
 
     return jsonify(snippets)
 
@@ -142,6 +148,7 @@ def create_snippet():
     week_start = data.get('week_start')
     week_end = data.get('week_end')
     content = data.get('content')
+    endeavor = data.get('endeavor', 'pet project')
 
     if not all([week_start, week_end, content]):
         return jsonify({'error': 'Missing required fields'}), 400
@@ -151,6 +158,7 @@ def create_snippet():
         'week_start': week_start,
         'week_end': week_end,
         'content': content,
+        'endeavor': endeavor,
         'created_at': firestore.SERVER_TIMESTAMP,
         'updated_at': firestore.SERVER_TIMESTAMP
     })
@@ -219,6 +227,7 @@ def get_goals():
 
     start_date = request.args.get('start_date')
     end_date = request.args.get('end_date')
+    endeavor = request.args.get('endeavor', 'pet project')
 
     goals_ref = db.collection('goals')
 
@@ -229,7 +238,9 @@ def get_goals():
         for doc in query.stream():
             goal = doc.to_dict()
             goal['id'] = doc.id
-            if goal['week_start'] <= end_date and goal['week_end'] >= start_date:
+            # Filter by endeavor, defaulting to 'pet project' for old records
+            goal_endeavor = goal.get('endeavor', 'pet project')
+            if goal['week_start'] <= end_date and goal['week_end'] >= start_date and goal_endeavor == endeavor:
                 goals.append(goal)
     else:
         query = goals_ref.order_by('week_start', direction=firestore.Query.DESCENDING).limit(10)
@@ -237,7 +248,10 @@ def get_goals():
         for doc in query.stream():
             goal = doc.to_dict()
             goal['id'] = doc.id
-            goals.append(goal)
+            # Filter by endeavor, defaulting to 'pet project' for old records
+            goal_endeavor = goal.get('endeavor', 'pet project')
+            if goal_endeavor == endeavor:
+                goals.append(goal)
 
     return jsonify(goals)
 
@@ -274,6 +288,7 @@ def create_goal():
     week_start = data.get('week_start')
     week_end = data.get('week_end')
     content = data.get('content')
+    endeavor = data.get('endeavor', 'pet project')
 
     if not all([week_start, week_end, content]):
         return jsonify({'error': 'Missing required fields'}), 400
@@ -283,6 +298,7 @@ def create_goal():
         'week_start': week_start,
         'week_end': week_end,
         'content': content,
+        'endeavor': endeavor,
         'created_at': firestore.SERVER_TIMESTAMP,
         'updated_at': firestore.SERVER_TIMESTAMP
     })
@@ -340,6 +356,7 @@ def get_reflections():
 
     start_date = request.args.get('start_date')
     end_date = request.args.get('end_date')
+    endeavor = request.args.get('endeavor', 'pet project')
 
     reflections_ref = db.collection('reflections')
 
@@ -350,7 +367,9 @@ def get_reflections():
         for doc in query.stream():
             reflection = doc.to_dict()
             reflection['id'] = doc.id
-            if reflection['week_start'] <= end_date and reflection['week_end'] >= start_date:
+            # Filter by endeavor, defaulting to 'pet project' for old records
+            reflection_endeavor = reflection.get('endeavor', 'pet project')
+            if reflection['week_start'] <= end_date and reflection['week_end'] >= start_date and reflection_endeavor == endeavor:
                 reflections.append(reflection)
     else:
         query = reflections_ref.order_by('week_start', direction=firestore.Query.DESCENDING).limit(10)
@@ -358,7 +377,10 @@ def get_reflections():
         for doc in query.stream():
             reflection = doc.to_dict()
             reflection['id'] = doc.id
-            reflections.append(reflection)
+            # Filter by endeavor, defaulting to 'pet project' for old records
+            reflection_endeavor = reflection.get('endeavor', 'pet project')
+            if reflection_endeavor == endeavor:
+                reflections.append(reflection)
 
     return jsonify(reflections)
 
@@ -395,6 +417,7 @@ def create_reflection():
     week_start = data.get('week_start')
     week_end = data.get('week_end')
     content = data.get('content')
+    endeavor = data.get('endeavor', 'pet project')
 
     if not all([week_start, week_end, content]):
         return jsonify({'error': 'Missing required fields'}), 400
@@ -404,6 +427,7 @@ def create_reflection():
         'week_start': week_start,
         'week_end': week_end,
         'content': content,
+        'endeavor': endeavor,
         'created_at': firestore.SERVER_TIMESTAMP,
         'updated_at': firestore.SERVER_TIMESTAMP
     })
@@ -461,18 +485,21 @@ def get_daily_scores():
 
     start_date = request.args.get('start_date')
     end_date = request.args.get('end_date')
+    endeavor = request.args.get('endeavor', 'pet project')
 
     scores_ref = db.collection('daily_scores')
 
     if start_date and end_date:
-        # Query all scores and filter by date range
+        # Query all scores and filter by date range and endeavor
         query = scores_ref.order_by('date')
 
         scores = []
         for doc in query.stream():
             score = doc.to_dict()
             score['id'] = doc.id
-            if score['date'] >= start_date and score['date'] <= end_date:
+            # Filter by endeavor, defaulting to 'pet project' for old records
+            score_endeavor = score.get('endeavor', 'pet project')
+            if score['date'] >= start_date and score['date'] <= end_date and score_endeavor == endeavor:
                 scores.append(score)
     else:
         # Get recent scores
@@ -481,7 +508,10 @@ def get_daily_scores():
         for doc in query.stream():
             score = doc.to_dict()
             score['id'] = doc.id
-            scores.append(score)
+            # Filter by endeavor, defaulting to 'pet project' for old records
+            score_endeavor = score.get('endeavor', 'pet project')
+            if score_endeavor == endeavor:
+                scores.append(score)
 
     return jsonify(scores)
 
@@ -497,13 +527,14 @@ def toggle_daily_score():
 
     data = request.get_json()
     date = data.get('date')
+    endeavor = data.get('endeavor', 'pet project')
 
     if not date:
         return jsonify({'error': 'Date is required'}), 400
 
-    # Check if score already exists for this date
+    # Check if score already exists for this date and endeavor
     scores_ref = db.collection('daily_scores')
-    query = scores_ref.where('date', '==', date).limit(1)
+    query = scores_ref.where('date', '==', date).where('endeavor', '==', endeavor).limit(1)
 
     existing_docs = list(query.stream())
 
@@ -517,10 +548,131 @@ def toggle_daily_score():
         doc_ref.set({
             'date': date,
             'score': 1,
+            'endeavor': endeavor,
             'created_at': firestore.SERVER_TIMESTAMP,
             'updated_at': firestore.SERVER_TIMESTAMP
         })
         return jsonify({'success': True, 'score': 1, 'id': doc_ref.id})
+
+
+# Endeavors API endpoints
+@app.route('/api/endeavors', methods=['GET'])
+@login_required
+def get_endeavors():
+    """Get list of all unique endeavors across all collections"""
+    if not FIRESTORE_AVAILABLE:
+        return jsonify({'error': 'Firestore not available'}), 500
+
+    endeavors = set()
+
+    # Get endeavors from snippets
+    snippets_ref = db.collection('snippets')
+    for doc in snippets_ref.stream():
+        snippet = doc.to_dict()
+        endeavor = snippet.get('endeavor', 'pet project')
+        endeavors.add(endeavor)
+
+    # Get endeavors from goals (if enabled)
+    if GOALS_ENABLED:
+        goals_ref = db.collection('goals')
+        for doc in goals_ref.stream():
+            goal = doc.to_dict()
+            endeavor = goal.get('endeavor', 'pet project')
+            endeavors.add(endeavor)
+
+    # Get endeavors from reflections (if enabled)
+    if REFLECTIONS_ENABLED:
+        reflections_ref = db.collection('reflections')
+        for doc in reflections_ref.stream():
+            reflection = doc.to_dict()
+            endeavor = reflection.get('endeavor', 'pet project')
+            endeavors.add(endeavor)
+
+    # Get endeavors from daily_scores (if enabled)
+    if DAILY_SCORES_ENABLED:
+        scores_ref = db.collection('daily_scores')
+        for doc in scores_ref.stream():
+            score = doc.to_dict()
+            endeavor = score.get('endeavor', 'pet project')
+            endeavors.add(endeavor)
+
+    # Convert set to sorted list
+    endeavors_list = sorted(list(endeavors))
+
+    return jsonify(endeavors_list)
+
+
+@app.route('/api/endeavors/rename', methods=['POST'])
+@login_required
+def rename_endeavor():
+    """Rename an endeavor across all collections"""
+    if not FIRESTORE_AVAILABLE:
+        return jsonify({'error': 'Firestore not available'}), 500
+
+    data = request.get_json()
+    old_name = data.get('old_name')
+    new_name = data.get('new_name')
+
+    if not old_name or not new_name:
+        return jsonify({'error': 'Both old_name and new_name are required'}), 400
+
+    if not new_name.strip():
+        return jsonify({'error': 'New endeavor name cannot be empty'}), 400
+
+    updated_count = 0
+
+    # Update snippets
+    snippets_ref = db.collection('snippets')
+    for doc in snippets_ref.stream():
+        snippet = doc.to_dict()
+        endeavor = snippet.get('endeavor', 'pet project')
+        if endeavor == old_name:
+            doc.reference.update({
+                'endeavor': new_name,
+                'updated_at': firestore.SERVER_TIMESTAMP
+            })
+            updated_count += 1
+
+    # Update goals (if enabled)
+    if GOALS_ENABLED:
+        goals_ref = db.collection('goals')
+        for doc in goals_ref.stream():
+            goal = doc.to_dict()
+            endeavor = goal.get('endeavor', 'pet project')
+            if endeavor == old_name:
+                doc.reference.update({
+                    'endeavor': new_name,
+                    'updated_at': firestore.SERVER_TIMESTAMP
+                })
+                updated_count += 1
+
+    # Update reflections (if enabled)
+    if REFLECTIONS_ENABLED:
+        reflections_ref = db.collection('reflections')
+        for doc in reflections_ref.stream():
+            reflection = doc.to_dict()
+            endeavor = reflection.get('endeavor', 'pet project')
+            if endeavor == old_name:
+                doc.reference.update({
+                    'endeavor': new_name,
+                    'updated_at': firestore.SERVER_TIMESTAMP
+                })
+                updated_count += 1
+
+    # Update daily_scores (if enabled)
+    if DAILY_SCORES_ENABLED:
+        scores_ref = db.collection('daily_scores')
+        for doc in scores_ref.stream():
+            score = doc.to_dict()
+            endeavor = score.get('endeavor', 'pet project')
+            if endeavor == old_name:
+                doc.reference.update({
+                    'endeavor': new_name,
+                    'updated_at': firestore.SERVER_TIMESTAMP
+                })
+                updated_count += 1
+
+    return jsonify({'success': True, 'updated_count': updated_count})
 
 
 if __name__ == '__main__':

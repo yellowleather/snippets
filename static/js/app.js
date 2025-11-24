@@ -8,6 +8,8 @@ let currentModalType = null; // 'snippet', 'goal', or 'reflection'
 let goalsEnabled = true; // Default to true, will be updated from server
 let reflectionsEnabled = true; // Default to true, will be updated from server
 let dailyScoresEnabled = true; // Default to true, will be updated from server
+let currentEndeavor = 'pet project'; // Current active endeavor
+let endeavorsCache = []; // Cache of all endeavors
 
 // Initialize the app
 document.addEventListener('DOMContentLoaded', async () => {
@@ -129,6 +131,18 @@ function getWeekNumber(date) {
 }
 
 async function initializeDefaultView() {
+    // Check URL for parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    const endeavorParam = urlParams.get('endeavor');
+    const startDateParam = urlParams.get('start_date');
+    const endDateParam = urlParams.get('end_date');
+
+    // Set current endeavor from URL or default to 'pet project'
+    currentEndeavor = endeavorParam || 'pet project';
+
+    // Load endeavors and render tabs
+    await loadEndeavors();
+
     // Default date range per spec:
     // Start = Monday of (current week - 4 weeks)
     // End   = Sunday of current week
@@ -146,8 +160,9 @@ async function initializeDefaultView() {
     // end = Sunday of current week
     const endStr = currentWeek.sunday;
 
-    document.getElementById('startDate').value = startStr;
-    document.getElementById('endDate').value = endStr;
+    // Use URL params if available, otherwise use defaults
+    document.getElementById('startDate').value = startDateParam || startStr;
+    document.getElementById('endDate').value = endDateParam || endStr;
 
     await loadSnippets();
 }
@@ -225,20 +240,21 @@ async function loadSnippets() {
 
     try {
         // Load snippets, conditionally load daily scores, goals and reflections
+        const endeavorParam = currentEndeavor ? `&endeavor=${encodeURIComponent(currentEndeavor)}` : '';
         const promises = [
-            fetch(`/api/snippets?start_date=${queryStart}&end_date=${queryEnd}`)
+            fetch(`/api/snippets?start_date=${queryStart}&end_date=${queryEnd}${endeavorParam}`)
         ];
 
         if (dailyScoresEnabled) {
-            promises.push(fetch(`/api/daily_scores?start_date=${queryStart}&end_date=${queryEnd}`));
+            promises.push(fetch(`/api/daily_scores?start_date=${queryStart}&end_date=${queryEnd}${endeavorParam}`));
         }
 
         if (reflectionsEnabled) {
-            promises.push(fetch(`/api/reflections?start_date=${queryStart}&end_date=${queryEnd}`));
+            promises.push(fetch(`/api/reflections?start_date=${queryStart}&end_date=${queryEnd}${endeavorParam}`));
         }
 
         if (goalsEnabled) {
-            promises.push(fetch(`/api/goals?start_date=${queryStart}&end_date=${queryEnd}`));
+            promises.push(fetch(`/api/goals?start_date=${queryStart}&end_date=${queryEnd}${endeavorParam}`));
         }
 
         const responses = await Promise.all(promises);
@@ -532,7 +548,10 @@ async function toggleDailyScore(date, event) {
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ date })
+            body: JSON.stringify({
+                date,
+                endeavor: currentEndeavor
+            })
         });
 
         if (!response.ok) {
@@ -786,7 +805,10 @@ async function saveSnippet() {
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ content })
+                body: JSON.stringify({
+                    content,
+                    endeavor: currentEndeavor
+                })
             });
         } else {
             // Create new item
@@ -798,7 +820,8 @@ async function saveSnippet() {
                 body: JSON.stringify({
                     week_start: currentWeekStart,
                     week_end: currentWeekEnd,
-                    content
+                    content,
+                    endeavor: currentEndeavor
                 })
             });
         }
@@ -954,7 +977,8 @@ async function importFromLastWeek() {
         const lastWeekEnd = getWeekDates(currentWeekDate).sunday;
 
         // Fetch goals for last week
-        const response = await fetch(`/api/goals?start_date=${lastWeekStart}&end_date=${lastWeekEnd}`);
+        const endeavorParam = currentEndeavor ? `&endeavor=${encodeURIComponent(currentEndeavor)}` : '';
+        const response = await fetch(`/api/goals?start_date=${lastWeekStart}&end_date=${lastWeekEnd}${endeavorParam}`);
         if (!response.ok) {
             throw new Error('Failed to fetch last week goals');
         }
@@ -1015,4 +1039,182 @@ document.addEventListener('keydown', (e) => {
 function goToHome() {
     // Go to default view with 4-week range
     initializeDefaultView();
+}
+
+// Endeavor management functions
+
+// Load all endeavors from the API
+async function loadEndeavors() {
+    try {
+        const response = await fetch('/api/endeavors');
+        if (!response.ok) {
+            throw new Error('Failed to load endeavors');
+        }
+        const endeavors = await response.json();
+        endeavorsCache = endeavors.length > 0 ? endeavors : ['pet project'];
+        renderTabs(endeavorsCache);
+    } catch (error) {
+        console.error('Error loading endeavors:', error);
+        // Fallback to default
+        endeavorsCache = ['pet project'];
+        renderTabs(endeavorsCache);
+    }
+}
+
+// Render the endeavor tabs
+function renderTabs(endeavors) {
+    const container = document.getElementById('tabsContainer');
+    if (!container) return;
+
+    let html = '';
+    endeavors.forEach(endeavor => {
+        const isActive = endeavor === currentEndeavor ? 'active' : '';
+        html += `<button class="endeavor-tab ${isActive}" onclick="switchEndeavor('${escapeHtml(endeavor)}')" ondblclick="startRenameEndeavor('${escapeHtml(endeavor)}')" title="${escapeHtml(endeavor)}">${escapeHtml(endeavor)}</button>`;
+    });
+    container.innerHTML = html;
+}
+
+// Switch to a different endeavor
+function switchEndeavor(endeavor) {
+    if (endeavor === currentEndeavor) return;
+
+    currentEndeavor = endeavor;
+
+    // Update URL with new endeavor
+    updateURL();
+
+    // Re-render tabs to show active state
+    renderTabs(endeavorsCache);
+
+    // Reload all data for the new endeavor
+    loadSnippets();
+}
+
+// Update URL with current endeavor and date range
+function updateURL() {
+    const startDate = document.getElementById('startDate').value;
+    const endDate = document.getElementById('endDate').value;
+
+    const params = new URLSearchParams();
+    if (currentEndeavor && currentEndeavor !== 'pet project') {
+        params.set('endeavor', currentEndeavor);
+    }
+    if (startDate) params.set('start_date', startDate);
+    if (endDate) params.set('end_date', endDate);
+
+    const newURL = `${window.location.pathname}?${params.toString()}`;
+    window.history.pushState({}, '', newURL);
+}
+
+// Start renaming an endeavor (double-click)
+function startRenameEndeavor(endeavor) {
+    const container = document.getElementById('tabsContainer');
+    const tabs = container.querySelectorAll('.endeavor-tab');
+
+    // Find the tab for this endeavor
+    for (let tab of tabs) {
+        if (tab.textContent === endeavor) {
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.value = endeavor;
+            input.className = 'endeavor-tab editable';
+
+            // Replace button with input
+            tab.replaceWith(input);
+            input.focus();
+            input.select();
+
+            // Handle save on Enter
+            input.addEventListener('keydown', async (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const newName = input.value.trim();
+                    if (newName && newName !== endeavor) {
+                        await renameEndeavor(endeavor, newName);
+                    } else {
+                        renderTabs(endeavorsCache);
+                    }
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    renderTabs(endeavorsCache);
+                }
+            });
+
+            // Handle blur (click outside)
+            input.addEventListener('blur', () => {
+                setTimeout(() => renderTabs(endeavorsCache), 200);
+            });
+
+            break;
+        }
+    }
+}
+
+// Rename an endeavor
+async function renameEndeavor(oldName, newName) {
+    if (!newName || newName === oldName) {
+        renderTabs(endeavorsCache);
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/endeavors/rename', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                old_name: oldName,
+                new_name: newName
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to rename endeavor');
+        }
+
+        // Update cache
+        const index = endeavorsCache.indexOf(oldName);
+        if (index !== -1) {
+            endeavorsCache[index] = newName;
+        }
+
+        // If we renamed the current endeavor, update it
+        if (currentEndeavor === oldName) {
+            currentEndeavor = newName;
+            updateURL();
+        }
+
+        // Re-render tabs
+        renderTabs(endeavorsCache);
+
+        // Reload data
+        await loadSnippets();
+    } catch (error) {
+        console.error('Error renaming endeavor:', error);
+        alert('Failed to rename endeavor');
+        renderTabs(endeavorsCache);
+    }
+}
+
+// Create a new endeavor
+async function createNewEndeavor() {
+    const name = prompt('Enter the name for the new endeavor:');
+    if (!name || !name.trim()) {
+        return;
+    }
+
+    const trimmedName = name.trim();
+
+    // Check if it already exists
+    if (endeavorsCache.includes(trimmedName)) {
+        alert('An endeavor with this name already exists');
+        return;
+    }
+
+    // Add to cache
+    endeavorsCache.push(trimmedName);
+
+    // Switch to the new endeavor
+    switchEndeavor(trimmedName);
 }

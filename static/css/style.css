@@ -91,7 +91,73 @@ nav {
     margin-bottom: 30px;
 }
 
+/* Endeavor tabs */
+.endeavor-tabs {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #e8eaed;
+}
 
+.tabs-container {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    flex: 1;
+}
+
+.endeavor-tab {
+    padding: 8px 16px;
+    background: #f1f3f4;
+    color: #5f6368;
+    border: none;
+    border-radius: 8px 8px 0 0;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    border-bottom: 3px solid transparent;
+}
+
+.endeavor-tab:hover {
+    background: #e8eaed;
+}
+
+.endeavor-tab.active {
+    background: #1a73e8;
+    color: white;
+    border-bottom-color: #1557b0;
+}
+
+.endeavor-tab.editable {
+    padding: 6px 14px;
+    background: white;
+    border: 2px solid #1a73e8;
+    border-radius: 4px;
+    outline: none;
+    min-width: 100px;
+}
+
+.add-endeavor-btn {
+    padding: 8px 16px;
+    background: white;
+    color: #1a73e8;
+    border: 1px solid #dadce0;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.add-endeavor-btn:hover {
+    background: #f1f3f4;
+    border-color: #1a73e8;
+}
 
 .date-controls {
     display: flex;

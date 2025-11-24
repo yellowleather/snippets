@@ -113,7 +113,8 @@ class TestSnippetCRUD:
         snippet_data = {
             'week_start': '2025-10-27',
             'week_end': '2025-11-02',
-            'content': '# Test Snippet\n\n- Item 1\n- Item 2'
+            'content': '# Test Snippet\n\n- Item 1\n- Item 2',
+            'endeavor': 'pet project'
         }
 
         with patch('app.FIRESTORE_AVAILABLE', True):
@@ -151,7 +152,8 @@ class TestSnippetCRUD:
         mock_doc.to_dict.return_value = {
             'week_start': '2025-10-27',
             'week_end': '2025-11-02',
-            'content': 'Test content'
+            'content': 'Test content',
+            'endeavor': 'pet project'
         }
 
         mock_doc_ref = Mock()
@@ -168,6 +170,7 @@ class TestSnippetCRUD:
         data = json.loads(response.data)
         assert data['week_start'] == '2025-10-27'
         assert data['content'] == 'Test content'
+        assert data['endeavor'] == 'pet project'
 
     def test_get_nonexistent_snippet(self, authenticated_client, mock_firestore):
         """Test retrieving a snippet that doesn't exist"""
@@ -243,7 +246,8 @@ class TestSnippetCRUD:
         mock_doc1.to_dict.return_value = {
             'week_start': '2025-10-27',
             'week_end': '2025-11-02',
-            'content': 'Week 1 content'
+            'content': 'Week 1 content',
+            'endeavor': 'pet project'
         }
 
         mock_doc2 = Mock()
@@ -251,19 +255,82 @@ class TestSnippetCRUD:
         mock_doc2.to_dict.return_value = {
             'week_start': '2025-10-20',
             'week_end': '2025-10-26',
-            'content': 'Week 2 content'
+            'content': 'Week 2 content',
+            'endeavor': 'pet project'
         }
 
         mock_query = Mock()
         mock_query.stream.return_value = [mock_doc1, mock_doc2]
         mock_query.order_by.return_value = mock_query
+        mock_query.where.return_value = mock_query
 
         mock_collection = Mock()
         mock_collection.order_by.return_value = mock_query
+        mock_collection.where.return_value = mock_query
         mock_firestore.collection.return_value = mock_collection
 
         with patch('app.FIRESTORE_AVAILABLE', True):
             response = authenticated_client.get('/api/snippets?start_date=2025-10-20&end_date=2025-11-02')
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert isinstance(data, list)
+
+    def test_get_snippets_with_endeavor_filter(self, authenticated_client, mock_firestore):
+        """Test getting snippets filtered by endeavor"""
+        # Mock Firestore query
+        mock_doc1 = Mock()
+        mock_doc1.id = 'snippet-1'
+        mock_doc1.to_dict.return_value = {
+            'week_start': '2025-10-27',
+            'week_end': '2025-11-02',
+            'content': 'Work snippet',
+            'endeavor': 'work'
+        }
+
+        mock_query = Mock()
+        mock_query.stream.return_value = [mock_doc1]
+        mock_query.order_by.return_value = mock_query
+        mock_query.where.return_value = mock_query
+        mock_query.limit.return_value = mock_query
+
+        mock_collection = Mock()
+        mock_collection.order_by.return_value = mock_query
+        mock_collection.where.return_value = mock_query
+        mock_firestore.collection.return_value = mock_collection
+
+        with patch('app.FIRESTORE_AVAILABLE', True):
+            response = authenticated_client.get('/api/snippets?endeavor=work')
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert isinstance(data, list)
+
+    def test_get_snippets_multiple_endeavors(self, authenticated_client, mock_firestore):
+        """Test that different endeavors return different data"""
+        # Mock Firestore query for 'work' endeavor
+        mock_doc_work = Mock()
+        mock_doc_work.id = 'snippet-work'
+        mock_doc_work.to_dict.return_value = {
+            'week_start': '2025-10-27',
+            'week_end': '2025-11-02',
+            'content': 'Work content',
+            'endeavor': 'work'
+        }
+
+        mock_query = Mock()
+        mock_query.stream.return_value = [mock_doc_work]
+        mock_query.order_by.return_value = mock_query
+        mock_query.where.return_value = mock_query
+        mock_query.limit.return_value = mock_query
+
+        mock_collection = Mock()
+        mock_collection.order_by.return_value = mock_query
+        mock_collection.where.return_value = mock_query
+        mock_firestore.collection.return_value = mock_collection
+
+        with patch('app.FIRESTORE_AVAILABLE', True):
+            response = authenticated_client.get('/api/snippets?endeavor=work')
 
         assert response.status_code == 200
         data = json.loads(response.data)
@@ -431,7 +498,8 @@ class TestGoalsCRUD:
         goal_data = {
             'week_start': '2025-10-27',
             'week_end': '2025-11-02',
-            'content': '# Weekly Goals\n\n- Complete feature X\n- Review PRs'
+            'content': '# Weekly Goals\n\n- Complete feature X\n- Review PRs',
+            'endeavor': 'pet project'
         }
 
         with patch('app.FIRESTORE_AVAILABLE', True):
@@ -468,7 +536,8 @@ class TestGoalsCRUD:
         mock_doc.to_dict.return_value = {
             'week_start': '2025-10-27',
             'week_end': '2025-11-02',
-            'content': 'Complete feature X'
+            'content': 'Complete feature X',
+            'endeavor': 'pet project'
         }
 
         mock_doc_ref = Mock()
@@ -485,6 +554,7 @@ class TestGoalsCRUD:
         data = json.loads(response.data)
         assert data['week_start'] == '2025-10-27'
         assert data['content'] == 'Complete feature X'
+        assert data['endeavor'] == 'pet project'
 
     def test_get_nonexistent_goal(self, authenticated_client, mock_firestore):
         """Test retrieving a goal that doesn't exist"""
@@ -559,7 +629,8 @@ class TestGoalsCRUD:
         mock_doc1.to_dict.return_value = {
             'week_start': '2025-10-27',
             'week_end': '2025-11-02',
-            'content': 'Week 1 goals'
+            'content': 'Week 1 goals',
+            'endeavor': 'pet project'
         }
 
         mock_doc2 = Mock()
@@ -567,19 +638,51 @@ class TestGoalsCRUD:
         mock_doc2.to_dict.return_value = {
             'week_start': '2025-10-20',
             'week_end': '2025-10-26',
-            'content': 'Week 2 goals'
+            'content': 'Week 2 goals',
+            'endeavor': 'pet project'
         }
 
         mock_query = Mock()
         mock_query.stream.return_value = [mock_doc1, mock_doc2]
         mock_query.order_by.return_value = mock_query
+        mock_query.where.return_value = mock_query
 
         mock_collection = Mock()
         mock_collection.order_by.return_value = mock_query
+        mock_collection.where.return_value = mock_query
         mock_firestore.collection.return_value = mock_collection
 
         with patch('app.FIRESTORE_AVAILABLE', True):
             response = authenticated_client.get('/api/goals?start_date=2025-10-20&end_date=2025-11-02')
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert isinstance(data, list)
+
+    def test_get_goals_with_endeavor_filter(self, authenticated_client, mock_firestore):
+        """Test getting goals filtered by endeavor"""
+        mock_doc1 = Mock()
+        mock_doc1.id = 'goal-1'
+        mock_doc1.to_dict.return_value = {
+            'week_start': '2025-10-27',
+            'week_end': '2025-11-02',
+            'content': 'Work goals',
+            'endeavor': 'work'
+        }
+
+        mock_query = Mock()
+        mock_query.stream.return_value = [mock_doc1]
+        mock_query.order_by.return_value = mock_query
+        mock_query.where.return_value = mock_query
+        mock_query.limit.return_value = mock_query
+
+        mock_collection = Mock()
+        mock_collection.order_by.return_value = mock_query
+        mock_collection.where.return_value = mock_query
+        mock_firestore.collection.return_value = mock_collection
+
+        with patch('app.FIRESTORE_AVAILABLE', True):
+            response = authenticated_client.get('/api/goals?endeavor=work')
 
         assert response.status_code == 200
         data = json.loads(response.data)
@@ -605,7 +708,8 @@ class TestReflectionsCRUD:
         reflection_data = {
             'week_start': '2025-10-27',
             'week_end': '2025-11-02',
-            'content': '# Weekly Reflection\n\n- Learned about X\n- Improved Y'
+            'content': '# Weekly Reflection\n\n- Learned about X\n- Improved Y',
+            'endeavor': 'pet project'
         }
 
         with patch('app.FIRESTORE_AVAILABLE', True):
@@ -642,7 +746,8 @@ class TestReflectionsCRUD:
         mock_doc.to_dict.return_value = {
             'week_start': '2025-10-27',
             'week_end': '2025-11-02',
-            'content': 'Learned about testing'
+            'content': 'Learned about testing',
+            'endeavor': 'pet project'
         }
 
         mock_doc_ref = Mock()
@@ -659,6 +764,7 @@ class TestReflectionsCRUD:
         data = json.loads(response.data)
         assert data['week_start'] == '2025-10-27'
         assert data['content'] == 'Learned about testing'
+        assert data['endeavor'] == 'pet project'
 
     def test_get_nonexistent_reflection(self, authenticated_client, mock_firestore):
         """Test retrieving a reflection that doesn't exist"""
@@ -733,7 +839,8 @@ class TestReflectionsCRUD:
         mock_doc1.to_dict.return_value = {
             'week_start': '2025-10-27',
             'week_end': '2025-11-02',
-            'content': 'Week 1 reflections'
+            'content': 'Week 1 reflections',
+            'endeavor': 'pet project'
         }
 
         mock_doc2 = Mock()
@@ -741,15 +848,18 @@ class TestReflectionsCRUD:
         mock_doc2.to_dict.return_value = {
             'week_start': '2025-10-20',
             'week_end': '2025-10-26',
-            'content': 'Week 2 reflections'
+            'content': 'Week 2 reflections',
+            'endeavor': 'pet project'
         }
 
         mock_query = Mock()
         mock_query.stream.return_value = [mock_doc1, mock_doc2]
         mock_query.order_by.return_value = mock_query
+        mock_query.where.return_value = mock_query
 
         mock_collection = Mock()
         mock_collection.order_by.return_value = mock_query
+        mock_collection.where.return_value = mock_query
         mock_firestore.collection.return_value = mock_collection
 
         with patch('app.FIRESTORE_AVAILABLE', True):
@@ -758,6 +868,193 @@ class TestReflectionsCRUD:
         assert response.status_code == 200
         data = json.loads(response.data)
         assert isinstance(data, list)
+
+    def test_get_reflections_with_endeavor_filter(self, authenticated_client, mock_firestore):
+        """Test getting reflections filtered by endeavor"""
+        mock_doc1 = Mock()
+        mock_doc1.id = 'reflection-1'
+        mock_doc1.to_dict.return_value = {
+            'week_start': '2025-10-27',
+            'week_end': '2025-11-02',
+            'content': 'Work reflections',
+            'endeavor': 'work'
+        }
+
+        mock_query = Mock()
+        mock_query.stream.return_value = [mock_doc1]
+        mock_query.order_by.return_value = mock_query
+        mock_query.where.return_value = mock_query
+        mock_query.limit.return_value = mock_query
+
+        mock_collection = Mock()
+        mock_collection.order_by.return_value = mock_query
+        mock_collection.where.return_value = mock_query
+        mock_firestore.collection.return_value = mock_collection
+
+        with patch('app.FIRESTORE_AVAILABLE', True):
+            response = authenticated_client.get('/api/reflections?endeavor=work')
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert isinstance(data, list)
+
+
+class TestEndeavors:
+    """Test endeavor management"""
+
+    def test_get_endeavors_requires_auth(self, client):
+        """Test that getting endeavors requires authentication"""
+        response = client.get('/api/endeavors')
+        assert response.status_code == 302  # Redirect to login
+
+    def test_get_endeavors_empty(self, authenticated_client, mock_firestore):
+        """Test getting endeavors when no data exists"""
+        # Mock empty collections
+        mock_collection = Mock()
+        mock_collection.stream.return_value = []
+        mock_firestore.collection.return_value = mock_collection
+
+        with patch('app.FIRESTORE_AVAILABLE', True):
+            response = authenticated_client.get('/api/endeavors')
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert isinstance(data, list)
+
+    def test_get_endeavors_multiple(self, authenticated_client, mock_firestore):
+        """Test getting list of unique endeavors from all collections"""
+        # Mock documents with different endeavors
+        mock_doc1 = Mock()
+        mock_doc1.to_dict.return_value = {'endeavor': 'pet project'}
+
+        mock_doc2 = Mock()
+        mock_doc2.to_dict.return_value = {'endeavor': 'work'}
+
+        mock_doc3 = Mock()
+        mock_doc3.to_dict.return_value = {'endeavor': 'pet project'}  # Duplicate
+
+        mock_collection = Mock()
+        mock_collection.stream.return_value = [mock_doc1, mock_doc2, mock_doc3]
+        mock_firestore.collection.return_value = mock_collection
+
+        with patch('app.FIRESTORE_AVAILABLE', True), \
+             patch('app.GOALS_ENABLED', True), \
+             patch('app.REFLECTIONS_ENABLED', True), \
+             patch('app.DAILY_SCORES_ENABLED', True):
+            response = authenticated_client.get('/api/endeavors')
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert isinstance(data, list)
+        # Should have unique endeavors, sorted
+        assert 'pet project' in data
+        assert 'work' in data
+
+    def test_get_endeavors_with_default(self, authenticated_client, mock_firestore):
+        """Test that documents without endeavor field default to 'pet project'"""
+        # Mock document without endeavor field
+        mock_doc = Mock()
+        mock_doc.to_dict.return_value = {'content': 'test'}
+
+        mock_collection = Mock()
+        mock_collection.stream.return_value = [mock_doc]
+        mock_firestore.collection.return_value = mock_collection
+
+        with patch('app.FIRESTORE_AVAILABLE', True):
+            response = authenticated_client.get('/api/endeavors')
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert 'pet project' in data
+
+    def test_rename_endeavor(self, authenticated_client, mock_firestore):
+        """Test renaming an endeavor across all collections"""
+        # Mock documents with the old endeavor name
+        mock_doc1 = Mock()
+        mock_doc1.reference = Mock()
+        mock_doc1.to_dict.return_value = {'endeavor': 'old name'}
+
+        mock_doc2 = Mock()
+        mock_doc2.reference = Mock()
+        mock_doc2.to_dict.return_value = {'endeavor': 'old name'}
+
+        mock_doc3 = Mock()
+        mock_doc3.reference = Mock()
+        mock_doc3.to_dict.return_value = {'endeavor': 'other project'}
+
+        mock_collection = Mock()
+        mock_collection.stream.return_value = [mock_doc1, mock_doc2, mock_doc3]
+        mock_firestore.collection.return_value = mock_collection
+
+        rename_data = {
+            'old_name': 'old name',
+            'new_name': 'new name'
+        }
+
+        with patch('app.FIRESTORE_AVAILABLE', True), \
+             patch('app.GOALS_ENABLED', True), \
+             patch('app.REFLECTIONS_ENABLED', True), \
+             patch('app.DAILY_SCORES_ENABLED', True):
+            response = authenticated_client.post('/api/endeavors/rename',
+                                                 data=json.dumps(rename_data),
+                                                 content_type='application/json')
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['success'] is True
+        assert 'updated_count' in data
+        # Should have updated the two docs with 'old name' in each of 4 collections
+        mock_doc1.reference.update.assert_called()
+        mock_doc2.reference.update.assert_called()
+
+    def test_rename_endeavor_missing_old_name(self, authenticated_client, mock_firestore):
+        """Test renaming without providing old_name"""
+        rename_data = {
+            'new_name': 'new name'
+        }
+
+        with patch('app.FIRESTORE_AVAILABLE', True):
+            response = authenticated_client.post('/api/endeavors/rename',
+                                                 data=json.dumps(rename_data),
+                                                 content_type='application/json')
+
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert 'error' in data
+        assert 'old_name' in data['error'] or 'required' in data['error']
+
+    def test_rename_endeavor_missing_new_name(self, authenticated_client, mock_firestore):
+        """Test renaming without providing new_name"""
+        rename_data = {
+            'old_name': 'old name'
+        }
+
+        with patch('app.FIRESTORE_AVAILABLE', True):
+            response = authenticated_client.post('/api/endeavors/rename',
+                                                 data=json.dumps(rename_data),
+                                                 content_type='application/json')
+
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert 'error' in data
+        assert 'new_name' in data['error'] or 'required' in data['error']
+
+    def test_rename_endeavor_empty_new_name(self, authenticated_client, mock_firestore):
+        """Test renaming with empty new_name"""
+        rename_data = {
+            'old_name': 'old name',
+            'new_name': '   '  # Whitespace only
+        }
+
+        with patch('app.FIRESTORE_AVAILABLE', True):
+            response = authenticated_client.post('/api/endeavors/rename',
+                                                 data=json.dumps(rename_data),
+                                                 content_type='application/json')
+
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert 'error' in data
+        assert 'empty' in data['error'].lower()
 
 
 class TestDailyScores:
@@ -774,6 +1071,7 @@ class TestDailyScores:
         mock_query = Mock()
         mock_query.stream.return_value = []
         mock_query.limit.return_value = mock_query
+        mock_query.where.return_value = mock_query
 
         mock_collection = Mock()
         mock_collection.where.return_value = mock_query
@@ -785,7 +1083,8 @@ class TestDailyScores:
         mock_firestore.collection.return_value = mock_collection
 
         score_data = {
-            'date': '2025-11-01'
+            'date': '2025-11-01',
+            'endeavor': 'pet project'
         }
 
         with patch('app.FIRESTORE_AVAILABLE', True):
@@ -809,13 +1108,15 @@ class TestDailyScores:
         mock_query = Mock()
         mock_query.stream.return_value = [mock_doc]
         mock_query.limit.return_value = mock_query
+        mock_query.where.return_value = mock_query
 
         mock_collection = Mock()
         mock_collection.where.return_value = mock_query
         mock_firestore.collection.return_value = mock_collection
 
         score_data = {
-            'date': '2025-11-01'
+            'date': '2025-11-01',
+            'endeavor': 'pet project'
         }
 
         with patch('app.FIRESTORE_AVAILABLE', True):
@@ -846,26 +1147,58 @@ class TestDailyScores:
         mock_doc1.id = 'score-1'
         mock_doc1.to_dict.return_value = {
             'date': '2025-11-01',
-            'score': 1
+            'score': 1,
+            'endeavor': 'pet project'
         }
 
         mock_doc2 = Mock()
         mock_doc2.id = 'score-2'
         mock_doc2.to_dict.return_value = {
             'date': '2025-11-02',
-            'score': 1
+            'score': 1,
+            'endeavor': 'pet project'
         }
 
         mock_query = Mock()
         mock_query.stream.return_value = [mock_doc1, mock_doc2]
         mock_query.order_by.return_value = mock_query
+        mock_query.where.return_value = mock_query
 
         mock_collection = Mock()
         mock_collection.order_by.return_value = mock_query
+        mock_collection.where.return_value = mock_query
         mock_firestore.collection.return_value = mock_collection
 
         with patch('app.FIRESTORE_AVAILABLE', True):
             response = authenticated_client.get('/api/daily_scores?start_date=2025-11-01&end_date=2025-11-03')
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert isinstance(data, list)
+
+    def test_get_daily_scores_with_endeavor_filter(self, authenticated_client, mock_firestore):
+        """Test getting daily scores filtered by endeavor"""
+        mock_doc1 = Mock()
+        mock_doc1.id = 'score-1'
+        mock_doc1.to_dict.return_value = {
+            'date': '2025-11-01',
+            'score': 1,
+            'endeavor': 'work'
+        }
+
+        mock_query = Mock()
+        mock_query.stream.return_value = [mock_doc1]
+        mock_query.order_by.return_value = mock_query
+        mock_query.where.return_value = mock_query
+        mock_query.limit.return_value = mock_query
+
+        mock_collection = Mock()
+        mock_collection.order_by.return_value = mock_query
+        mock_collection.where.return_value = mock_query
+        mock_firestore.collection.return_value = mock_collection
+
+        with patch('app.FIRESTORE_AVAILABLE', True):
+            response = authenticated_client.get('/api/daily_scores?endeavor=work')
 
         assert response.status_code == 200
         data = json.loads(response.data)
