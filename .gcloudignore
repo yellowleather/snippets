@@ -17,3 +17,46 @@
 __pycache__/
 # Ignored by the build system
 /setup.cfg
+
+# Virtual environment (dependencies are in requirements.txt)
+venv/
+env/
+*.pyc
+*.pyo
+*.pyd
+
+# Testing
+.pytest_cache/
+.coverage
+test_*.py
+*_test.py
+run_tests.sh
+
+# Development scripts
+run_local.sh
+deploy.sh
+
+# Documentation
+README.md
+LICENSE
+spec.txt
+feature_specs/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.claude/
+
+# Environment files (keep .env.production for deployment)
+.env
+.env.local
+.env.development
+
+# Build artifacts
+*.egg-info/
+dist/
+build/

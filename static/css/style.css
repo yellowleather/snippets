@@ -181,12 +181,26 @@ nav {
 }
 
 .score-square {
-    width: 28px;
-    height: 28px;
+    width: 24px;
+    height: 24px;
     border: 2px solid #dadce0;
-    border-radius: 4px;
+    border-radius: 50%;
     background: white;
-    transition: all 0.2s ease;
+    position: relative;
+    transition: all 0.15s ease;
+}
+
+.score-square::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #34a853;
+    transition: transform 0.15s ease;
 }
 
 .score-square.clickable {
@@ -194,17 +208,18 @@ nav {
 }
 
 .score-square.clickable:hover {
-    border-color: #5f6368;
-    transform: scale(1.05);
+    border-color: #34a853;
+}
+
+.score-square.win::before {
+    transform: translate(-50%, -50%) scale(1);
 }
 
 .score-square.win {
-    background: #34a853;
     border-color: #34a853;
 }
 
 .score-square.win.clickable:hover {
-    background: #2d9148;
     border-color: #2d9148;
 }
 
