@@ -1052,6 +1052,13 @@ async function loadEndeavors() {
         }
         const endeavors = await response.json();
         endeavorsCache = endeavors.length > 0 ? endeavors : ['pet project'];
+
+        // If current endeavor doesn't exist in the list, use the first one
+        if (!endeavorsCache.includes(currentEndeavor)) {
+            currentEndeavor = endeavorsCache[0];
+            updateURL();
+        }
+
         renderTabs(endeavorsCache);
     } catch (error) {
         console.error('Error loading endeavors:', error);
