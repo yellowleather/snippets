@@ -8,8 +8,12 @@ let currentModalType = null; // 'snippet', 'goal', or 'reflection'
 let goalsEnabled = true; // Default to true, will be updated from server
 let reflectionsEnabled = true; // Default to true, will be updated from server
 let dailyScoresEnabled = true; // Default to true, will be updated from server
+let fitnessEnabled = true; // Default to true, will be updated from server
 let currentEndeavor = 'pet project'; // Current active endeavor
 let endeavorsCache = []; // Cache of all endeavors
+let currentView = 'endeavors'; // 'endeavors' or 'fitness'
+let fitnessHabits = []; // Cache of fitness habits
+let fitnessTracking = {}; // Cache of fitness tracking data
 
 // Initialize the app
 document.addEventListener('DOMContentLoaded', async () => {
@@ -25,12 +29,14 @@ async function loadConfig() {
         goalsEnabled = config.goals_enabled;
         reflectionsEnabled = config.reflections_enabled;
         dailyScoresEnabled = config.daily_scores_enabled;
+        fitnessEnabled = config.fitness_enabled;
     } catch (error) {
         console.error('Error loading config:', error);
         // Default to true if config fails to load
         goalsEnabled = true;
         reflectionsEnabled = true;
         dailyScoresEnabled = true;
+        fitnessEnabled = true;
     }
 }
 
@@ -53,7 +59,11 @@ function setupDateInputs() {
             }
         }
 
-        loadSnippets();
+        if (currentView === 'endeavors') {
+            loadSnippets();
+        } else {
+            loadFitnessView();
+        }
     });
 
     // When end changes: ensure it's a Sunday (snap to Sunday), and that end >= start
@@ -71,7 +81,11 @@ function setupDateInputs() {
             }
         }
 
-        loadSnippets();
+        if (currentView === 'endeavors') {
+            loadSnippets();
+        } else {
+            loadFitnessView();
+        }
     });
 }
 
@@ -210,7 +224,11 @@ async function navigateWeek(direction) {
     startInput.value = formatDate(startDate);
     endInput.value = formatDate(endDate);
 
-    await loadSnippets();
+    if (currentView === 'endeavors') {
+        await loadSnippets();
+    } else {
+        await loadFitnessView();
+    }
 }
 
 async function loadSnippets() {
@@ -1224,4 +1242,252 @@ async function createNewEndeavor() {
 
     // Switch to the new endeavor
     switchEndeavor(trimmedName);
+}
+
+// View switching functions
+
+function switchToView(view) {
+    currentView = view;
+
+    // Update button states
+    document.getElementById('endeavorsViewBtn').classList.toggle('active', view === 'endeavors');
+    document.getElementById('fitnessViewBtn').classList.toggle('active', view === 'fitness');
+
+    if (view === 'endeavors') {
+        // Show endeavors view
+        document.getElementById('endeavorTabsSection').style.display = 'flex';
+        document.getElementById('snippetsContainer').style.display = 'block';
+        document.getElementById('fitnessContainer').style.display = 'none';
+        document.querySelector('.date-controls').style.display = 'flex';
+    } else {
+        // Show fitness view
+        document.getElementById('endeavorTabsSection').style.display = 'none';
+        document.getElementById('snippetsContainer').style.display = 'none';
+        document.getElementById('fitnessContainer').style.display = 'block';
+        document.querySelector('.date-controls').style.display = 'flex';
+        loadFitnessView();
+    }
+}
+
+// Fitness functions
+
+async function loadFitnessView() {
+    const startDate = document.getElementById('startDate').value;
+    const endDate = document.getElementById('endDate').value;
+
+    if (!startDate || !endDate) return;
+
+    try {
+        // Load habits and tracking data
+        const [habitsResponse, trackingResponse] = await Promise.all([
+            fetch('/api/fitness/habits'),
+            fetch(`/api/fitness/tracking?start_date=${startDate}&end_date=${endDate}`)
+        ]);
+
+        fitnessHabits = await habitsResponse.json();
+        const trackingData = await trackingResponse.json();
+
+        // Build tracking map: { date: { habit_id: true } }
+        fitnessTracking = {};
+        trackingData.forEach(record => {
+            if (!fitnessTracking[record.date]) {
+                fitnessTracking[record.date] = {};
+            }
+            fitnessTracking[record.date][record.habit_id] = true;
+        });
+
+        renderFitnessView(startDate, endDate);
+    } catch (error) {
+        console.error('Error loading fitness data:', error);
+    }
+}
+
+function renderFitnessView(startDate, endDate) {
+    const container = document.getElementById('fitnessContainer');
+
+    // Compute weeks in range
+    const weeks = computeUniverseWeeks(startDate, endDate);
+
+    let html = '<div class="fitness-header">';
+    html += '<h1>Fitness Tracking</h1>';
+    html += '<button class="add-habit-btn" onclick="openAddHabitModal()">+ Add Habit</button>';
+    html += '</div>';
+
+    if (fitnessHabits.length === 0) {
+        html += '<p style="text-align: center; color: #5f6368; padding: 40px;">No habits configured. Click "+ Add Habit" to get started.</p>';
+        container.innerHTML = html;
+        return;
+    }
+
+    // Render table for each week
+    weeks.reverse().forEach(week => {
+        html += renderWeekFitnessTable(week);
+    });
+
+    container.innerHTML = html;
+}
+
+function renderWeekFitnessTable(week) {
+    const weekNum = getWeekNumber(week.week_start);
+    const startFormatted = formatDateDisplay(week.week_start);
+    const endFormatted = formatDateDisplay(week.week_end);
+
+    let html = '<div class="week-section" style="margin-bottom: 40px;">';
+    html += `<div class="week-header">`;
+    html += `<span class="week-badge">Week ${weekNum}</span>`;
+    html += `<h2 class="week-title">${startFormatted} – ${endFormatted}</h2>`;
+    html += `</div>`;
+
+    html += '<div class="fitness-grid">';
+    html += '<table class="fitness-table">';
+    html += '<thead><tr>';
+    html += '<th>Habit</th>';
+
+    // Day headers (Mon-Sun)
+    const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    dayNames.forEach(day => {
+        html += `<th style="text-align: center;">${day}</th>`;
+    });
+
+    html += '<th style="text-align: center;">Progress</th>';
+    html += '</tr></thead>';
+    html += '<tbody>';
+
+    // Render each habit
+    fitnessHabits.forEach(habit => {
+        html += '<tr>';
+        html += `<td>`;
+        html += `<div class="habit-name">${escapeHtml(habit.name)}</div>`;
+        html += `<div class="habit-frequency">${habit.frequency_per_week}x/week</div>`;
+        html += `</td>`;
+
+        // Render checkboxes for each day
+        const weekStartDate = new Date(week.weekStartObj);
+        let completedCount = 0;
+
+        for (let i = 0; i < 7; i++) {
+            const currentDate = new Date(weekStartDate);
+            currentDate.setDate(currentDate.getDate() + i);
+            const dateStr = formatDate(currentDate);
+
+            const isCompleted = fitnessTracking[dateStr]?.[habit.id] || false;
+            if (isCompleted) completedCount++;
+
+            const today = new Date();
+            const todayStr = formatDate(today);
+            const isPast = dateStr <= todayStr;
+
+            html += '<td style="text-align: center;">';
+            const clickableClass = isPast ? 'clickable' : '';
+            const winClass = isCompleted ? 'win' : '';
+            if (isPast) {
+                html += `<div class="score-square ${winClass} ${clickableClass}" onclick="toggleHabitTracking('${dateStr}', '${habit.id}', event)"></div>`;
+            } else {
+                html += `<div class="score-square"></div>`;
+            }
+            html += '</td>';
+        }
+
+        // Progress column
+        const progressClass = completedCount >= habit.frequency_per_week ? 'complete' : 'incomplete';
+        html += `<td style="text-align: center;"><span class="habit-progress ${progressClass}">${completedCount}/${habit.frequency_per_week}</span></td>`;
+
+        html += '</tr>';
+    });
+
+    html += '</tbody></table>';
+    html += '</div>'; // fitness-grid
+    html += '</div>'; // week-section
+
+    return html;
+}
+
+async function toggleHabitTracking(date, habitId, event) {
+    // Immediate UI update - toggle the square
+    const clickedSquare = event ? event.currentTarget : null;
+    if (clickedSquare) {
+        clickedSquare.classList.toggle('win');
+    }
+
+    try {
+        const response = await fetch('/api/fitness/tracking/toggle', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                date,
+                habit_id: habitId
+            })
+        });
+
+        if (response.ok) {
+            const result = await response.json();
+
+            // Update local cache
+            if (!fitnessTracking[date]) {
+                fitnessTracking[date] = {};
+            }
+
+            if (result.completed) {
+                fitnessTracking[date][habitId] = true;
+            } else {
+                delete fitnessTracking[date][habitId];
+            }
+
+            // Reload view to update progress
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            renderFitnessView(startDate, endDate);
+        } else {
+            // Revert the UI update on failure
+            if (clickedSquare) {
+                clickedSquare.classList.toggle('win');
+            }
+            alert('Failed to update tracking');
+        }
+    } catch (error) {
+        console.error('Error toggling habit tracking:', error);
+        // Revert the UI update on error
+        if (clickedSquare) {
+            clickedSquare.classList.toggle('win');
+        }
+        alert('Failed to update tracking');
+    }
+}
+
+async function openAddHabitModal() {
+    const name = prompt('Enter habit name (e.g., "Protein intake in the morning"):');
+    if (!name || !name.trim()) return;
+
+    const frequency = prompt('How many times per week? (1-7):');
+    const frequencyNum = parseInt(frequency);
+    if (!frequencyNum || frequencyNum < 1 || frequencyNum > 7) {
+        alert('Please enter a valid frequency between 1 and 7');
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/fitness/habits', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                name: name.trim(),
+                frequency_per_week: frequencyNum,
+                category: 'general',
+                order: fitnessHabits.length
+            })
+        });
+
+        if (response.ok) {
+            loadFitnessView();
+        } else {
+            alert('Failed to create habit');
+        }
+    } catch (error) {
+        console.error('Error creating habit:', error);
+        alert('Failed to create habit');
+    }
 }

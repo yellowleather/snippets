@@ -91,6 +91,37 @@ nav {
     margin-bottom: 30px;
 }
 
+/* View Switcher */
+.view-switcher {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid #e8eaed;
+}
+
+.view-btn {
+    padding: 10px 24px;
+    background: white;
+    color: #5f6368;
+    border: 1px solid #dadce0;
+    border-radius: 4px;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.view-btn:hover {
+    background: #f1f3f4;
+}
+
+.view-btn.active {
+    background: #1a73e8;
+    color: white;
+    border-color: #1a73e8;
+}
+
 /* Endeavor tabs */
 .endeavor-tabs {
     display: flex;
@@ -684,4 +715,125 @@ nav {
     height: 80px;
     margin-bottom: 20px;
     opacity: 0.5;
+}
+
+/* Fitness Container */
+.fitness-container {
+    background: white;
+    border-radius: 8px;
+    padding: 30px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+}
+
+.fitness-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+}
+
+.fitness-header h1 {
+    font-size: 28px;
+    font-weight: 400;
+    color: #202124;
+}
+
+.add-habit-btn {
+    padding: 10px 20px;
+    background: #1a73e8;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.add-habit-btn:hover {
+    background: #1557b0;
+}
+
+.fitness-grid {
+    overflow-x: auto;
+}
+
+.fitness-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 800px;
+}
+
+.fitness-table th {
+    text-align: left;
+    padding: 12px 16px;
+    background: #f8f9fa;
+    color: #5f6368;
+    font-weight: 500;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 2px solid #e8eaed;
+}
+
+.fitness-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid #e8eaed;
+}
+
+.fitness-table tr:hover {
+    background: #f8f9fa;
+}
+
+.habit-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: #202124;
+}
+
+.habit-frequency {
+    font-size: 13px;
+    color: #5f6368;
+}
+
+.habit-progress {
+    font-size: 13px;
+    color: #5f6368;
+}
+
+.habit-progress.complete {
+    color: #34a853;
+    font-weight: 500;
+}
+
+.habit-progress.incomplete {
+    color: #ea4335;
+}
+
+.habit-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.habit-actions button {
+    padding: 6px 12px;
+    border: 1px solid #dadce0;
+    border-radius: 4px;
+    background: white;
+    color: #5f6368;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.habit-actions button:hover {
+    background: #f1f3f4;
+}
+
+.habit-actions .delete-habit-btn {
+    color: #d93025;
+    border-color: #d93025;
+}
+
+.habit-actions .delete-habit-btn:hover {
+    background: #fce8e6;
 }

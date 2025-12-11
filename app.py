@@ -26,6 +26,7 @@ PASSWORD_HASH = generate_password_hash(os.environ.get('SNIPPET_PASSWORD', 'chang
 GOALS_ENABLED = os.environ.get('GOALS_ENABLED', 'true').lower() == 'true'
 REFLECTIONS_ENABLED = os.environ.get('REFLECTIONS_ENABLED', 'true').lower() == 'true'
 DAILY_SCORES_ENABLED = os.environ.get('DAILY_SCORES_ENABLED', 'true').lower() == 'true'
+FITNESS_ENABLED = os.environ.get('FITNESS_ENABLED', 'true').lower() == 'true'
 
 def login_required(f):
     @wraps(f)
@@ -80,7 +81,8 @@ def get_config():
     return jsonify({
         'goals_enabled': GOALS_ENABLED,
         'reflections_enabled': REFLECTIONS_ENABLED,
-        'daily_scores_enabled': DAILY_SCORES_ENABLED
+        'daily_scores_enabled': DAILY_SCORES_ENABLED,
+        'fitness_enabled': FITNESS_ENABLED
     })
 
 @app.route('/api/snippets', methods=['GET'])
@@ -673,6 +675,231 @@ def rename_endeavor():
                 updated_count += 1
 
     return jsonify({'success': True, 'updated_count': updated_count})
+
+
+# Fitness API endpoints
+
+@app.route('/api/fitness/habits', methods=['GET'])
+@login_required
+def get_fitness_habits():
+    """Get all fitness habits"""
+    if not FITNESS_ENABLED:
+        return jsonify({'error': 'Fitness feature is disabled'}), 404
+
+    if not FIRESTORE_AVAILABLE:
+        return jsonify({'error': 'Firestore not available'}), 500
+
+    try:
+        habits_ref = db.collection('fitness_habits')
+        query = habits_ref.order_by('order')
+
+        habits = []
+        for doc in query.stream():
+            habit = doc.to_dict()
+            habit['id'] = doc.id
+            habits.append(habit)
+
+        return jsonify(habits)
+    except Exception as e:
+        print('Error loading habits:', e)
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/fitness/habits', methods=['POST'])
+@login_required
+def create_fitness_habit():
+    """Create a new fitness habit"""
+    if not FITNESS_ENABLED:
+        return jsonify({'error': 'Fitness feature is disabled'}), 404
+
+    if not FIRESTORE_AVAILABLE:
+        return jsonify({'error': 'Firestore not available'}), 500
+
+    data = request.get_json()
+    name = data.get('name')
+    frequency_per_week = data.get('frequency_per_week')
+    category = data.get('category', 'general')
+    order = data.get('order', 0)
+
+    if not all([name, frequency_per_week is not None]):
+        return jsonify({'error': 'Missing required fields'}), 400
+
+    doc_ref = db.collection('fitness_habits').document()
+    doc_ref.set({
+        'name': name,
+        'frequency_per_week': frequency_per_week,
+        'category': category,
+        'order': order,
+        'created_at': firestore.SERVER_TIMESTAMP,
+        'updated_at': firestore.SERVER_TIMESTAMP
+    })
+
+    return jsonify({'id': doc_ref.id, 'success': True})
+
+
+@app.route('/api/fitness/habits/<habit_id>', methods=['PUT'])
+@login_required
+def update_fitness_habit(habit_id):
+    """Update a fitness habit"""
+    if not FITNESS_ENABLED:
+        return jsonify({'error': 'Fitness feature is disabled'}), 404
+
+    if not FIRESTORE_AVAILABLE:
+        return jsonify({'error': 'Firestore not available'}), 500
+
+    data = request.get_json()
+
+    update_data = {'updated_at': firestore.SERVER_TIMESTAMP}
+    if 'name' in data:
+        update_data['name'] = data['name']
+    if 'frequency_per_week' in data:
+        update_data['frequency_per_week'] = data['frequency_per_week']
+    if 'category' in data:
+        update_data['category'] = data['category']
+    if 'order' in data:
+        update_data['order'] = data['order']
+
+    doc_ref = db.collection('fitness_habits').document(habit_id)
+    doc_ref.update(update_data)
+
+    return jsonify({'success': True})
+
+
+@app.route('/api/fitness/habits/<habit_id>', methods=['DELETE'])
+@login_required
+def delete_fitness_habit(habit_id):
+    """Delete a fitness habit"""
+    if not FITNESS_ENABLED:
+        return jsonify({'error': 'Fitness feature is disabled'}), 404
+
+    if not FIRESTORE_AVAILABLE:
+        return jsonify({'error': 'Firestore not available'}), 500
+
+    # Delete the habit
+    db.collection('fitness_habits').document(habit_id).delete()
+
+    # Delete all tracking records for this habit
+    tracking_ref = db.collection('fitness_tracking')
+    query = tracking_ref.where('habit_id', '==', habit_id)
+    for doc in query.stream():
+        doc.reference.delete()
+
+    return jsonify({'success': True})
+
+
+@app.route('/api/fitness/tracking', methods=['GET'])
+@login_required
+def get_fitness_tracking():
+    """Get fitness tracking records for a date range"""
+    if not FITNESS_ENABLED:
+        return jsonify({'error': 'Fitness feature is disabled'}), 404
+
+    if not FIRESTORE_AVAILABLE:
+        return jsonify({'error': 'Firestore not available'}), 500
+
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+
+    tracking_ref = db.collection('fitness_tracking')
+
+    if start_date and end_date:
+        query = tracking_ref.where('date', '>=', start_date).where('date', '<=', end_date)
+    else:
+        query = tracking_ref.limit(100)
+
+    tracking = []
+    for doc in query.stream():
+        record = doc.to_dict()
+        record['id'] = doc.id
+        tracking.append(record)
+
+    return jsonify(tracking)
+
+
+@app.route('/api/fitness/tracking/toggle', methods=['POST'])
+@login_required
+def toggle_fitness_tracking():
+    """Toggle fitness tracking for a specific habit on a specific date"""
+    if not FITNESS_ENABLED:
+        return jsonify({'error': 'Fitness feature is disabled'}), 404
+
+    if not FIRESTORE_AVAILABLE:
+        return jsonify({'error': 'Firestore not available'}), 500
+
+    data = request.get_json()
+    date = data.get('date')
+    habit_id = data.get('habit_id')
+
+    if not all([date, habit_id]):
+        return jsonify({'error': 'Missing required fields'}), 400
+
+    # Check if tracking record exists
+    tracking_ref = db.collection('fitness_tracking')
+    query = tracking_ref.where('date', '==', date).where('habit_id', '==', habit_id).limit(1)
+
+    existing_docs = list(query.stream())
+
+    if existing_docs:
+        # Record exists, delete it (toggle off)
+        existing_docs[0].reference.delete()
+        return jsonify({'success': True, 'completed': False})
+    else:
+        # Record doesn't exist, create it (toggle on)
+        doc_ref = tracking_ref.document()
+        doc_ref.set({
+            'date': date,
+            'habit_id': habit_id,
+            'completed': True,
+            'created_at': firestore.SERVER_TIMESTAMP,
+            'updated_at': firestore.SERVER_TIMESTAMP
+        })
+        return jsonify({'success': True, 'completed': True, 'id': doc_ref.id})
+
+
+@app.route('/api/fitness/init-default-habits', methods=['POST'])
+@login_required
+def init_default_habits():
+    """Initialize default fitness habits (admin endpoint)"""
+    if not FITNESS_ENABLED:
+        return jsonify({'error': 'Fitness feature is disabled'}), 404
+
+    if not FIRESTORE_AVAILABLE:
+        return jsonify({'error': 'Firestore not available'}), 500
+
+    # Default habits
+    default_habits = [
+        {'name': 'Protein intake in the morning', 'frequency_per_week': 7, 'category': 'nutrition', 'order': 0},
+        {'name': 'Walk in the evening', 'frequency_per_week': 4, 'category': 'cardio', 'order': 1},
+        {'name': 'Running/Sprinting', 'frequency_per_week': 2, 'category': 'cardio', 'order': 2},
+        {'name': 'Legs day', 'frequency_per_week': 1, 'category': 'strength', 'order': 3},
+        {'name': 'Push day', 'frequency_per_week': 1, 'category': 'strength', 'order': 4},
+        {'name': 'Pull day', 'frequency_per_week': 1, 'category': 'strength', 'order': 5},
+        {'name': 'No food after 6 pm', 'frequency_per_week': 7, 'category': 'nutrition', 'order': 6}
+    ]
+
+    habits_ref = db.collection('fitness_habits')
+
+    # Check if habits already exist
+    existing = list(habits_ref.stream())
+    if existing:
+        return jsonify({'error': f'Habits already exist ({len(existing)} found). Delete them first if you want to reinitialize.'}), 400
+
+    # Create habits
+    created_ids = []
+    for habit in default_habits:
+        doc_ref = habits_ref.document()
+        doc_ref.set({
+            **habit,
+            'created_at': firestore.SERVER_TIMESTAMP,
+            'updated_at': firestore.SERVER_TIMESTAMP
+        })
+        created_ids.append(doc_ref.id)
+
+    return jsonify({
+        'success': True,
+        'message': f'Successfully created {len(created_ids)} default habits',
+        'habit_ids': created_ids
+    })
 
 
 if __name__ == '__main__':

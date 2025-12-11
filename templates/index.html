@@ -35,7 +35,11 @@
         <!-- Main content -->
         <div class="main-content">
             <div class="header">
-                <div class="endeavor-tabs">
+                <div class="view-switcher">
+                    <button id="endeavorsViewBtn" class="view-btn active" onclick="switchToView('endeavors')">Endeavors</button>
+                    <button id="fitnessViewBtn" class="view-btn" onclick="switchToView('fitness')">Fitness</button>
+                </div>
+                <div class="endeavor-tabs" id="endeavorTabsSection">
                     <div id="tabsContainer" class="tabs-container">
                         <!-- Tabs will be dynamically inserted here -->
                     </div>
@@ -54,6 +58,10 @@
 
             <div class="snippets-container" id="snippetsContainer">
                 <!-- Snippets will be loaded here -->
+            </div>
+
+            <div class="fitness-container" id="fitnessContainer" style="display: none;">
+                <!-- Fitness tracking will be loaded here -->
             </div>
         </div>
     </div>
